@@ -29,7 +29,7 @@
         <quarkus.platform.version>3.40.1</quarkus.platform.version>
 
         <!-- Dependências fora do BOM do Quarkus -->
-        <assertj.version>3.27.3</assertj.version>
+        <assertj.version>3.27.7</assertj.version>
 
         <!-- Plugins -->
         <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
