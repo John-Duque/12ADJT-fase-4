@@ -1,0 +1,40 @@
+name: Convenções do PR
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+jobs:
+  conventions:
+    name: Nome da branch e título do PR
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Validar nome da branch
+        env:
+          BRANCH: ${{ github.head_ref }}
+        run: |
+          # Branches de promoção entre ambientes
+          if [[ "$BRANCH" == "develop" ]]; then
+            echo "Branch de promoção: $BRANCH"
+            exit 0
+          fi
+          pattern='^(feature|fix|hotfix|chore|docs|refactor|test|ci|infra)/[0-9]*-?[a-z0-9]+(-[a-z0-9]+)*$'
+          if [[ ! "$BRANCH" =~ $pattern ]]; then
+            echo "::error title=Nome de branch inválido::'$BRANCH' não segue <tipo>/<numero-da-issue>-<descricao-curta>. Ex.: feature/12-endpoint-avaliacao"
+            exit 1
+          fi
+          echo "Branch válida: $BRANCH"
+
+      - name: Validar título do PR (Conventional Commits)
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          pattern='^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|infra|revert)(\([a-z0-9-]+\))?!?: .+'
+          if [[ ! "$TITLE" =~ $pattern ]]; then
+            echo "::error title=Título de PR inválido::'$TITLE' não segue Conventional Commits. Ex.: feat(ingestion): cria endpoint POST /avaliacao"
+            exit 1
+          fi
+          echo "Título válido: $TITLE"

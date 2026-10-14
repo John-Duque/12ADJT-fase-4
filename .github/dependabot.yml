@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: maven
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: build
+    groups:
+      quarkus:
+        patterns: ["io.quarkus*"]
+
+  - package-ecosystem: github-actions
+    directory: /
+    target-branch: develop
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci

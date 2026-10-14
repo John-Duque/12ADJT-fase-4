@@ -1,0 +1,42 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+pom.xml.versionsBackup
+
+# Quarkus
+.quarkus/
+quarkus.log*
+
+# IDEs
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+.factorypath
+
+# SO
+.DS_Store
+Thumbs.db
+
+# Segredos e variáveis locais
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Terraform / IaC
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+.terraform.lock.hcl.bak
+crash.log
+
+# AWS SAM / Azure Functions / GCP
+.aws-sam/
+local.settings.json
+.gcloudignore.local
