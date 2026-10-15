@@ -15,6 +15,7 @@
     <!-- Cada módulo é adicionado aqui pela sua task do GitHub Project, nesta ordem:
          shared/feedback-domain, functions/feedback-ingestion, functions/critical-notifier, functions/weekly-report -->
     <modules>
+        <module>shared/feedback-domain</module>
     </modules>
 
     <properties>
