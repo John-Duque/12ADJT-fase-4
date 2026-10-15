@@ -281,9 +281,11 @@ Ajustes do Board (▾ da aba → configurações):
 | View | Layout | Configuração |
 |---|---|---|
 | **Backlog** | Table | *Filter* `status:Backlog,Todo`; *Group by* Milestone; *Sort* Título |
-| **Por pessoa** | Board | *Filter* `-status:Done`; *Column by* Status; *Group by* Assignees |
+| **Por pessoa** | Table | *Filter* `-status:Done`; colunas Assignees, Status, Milestone, Prioridade, Estimativa e Sprint |
 | **Sprint atual** | Board | *Filter* `sprint:@current`; *Column by* Status |
-| **Roadmap** | Roadmap | *Dates* Sprint (ou Data limite); *Group by* Milestone; *Zoom* Month |
+| **Roadmap** | Roadmap | *Date fields* Sprint (ou Data limite); *Zoom* Month |
+
+Agrupar e ordenar: botão **View** ao lado da barra de filtro → *Group by* / *Sort*. Se a opção não aparecer, em uma Table clique no título da coluna → *Group by values*.
 
 Filtros úteis: `assignee:@me`, `label:dominio`, `milestone:"2. Domínio"`, `area:Domain`, `no:assignee`.
 
@@ -305,7 +307,7 @@ Mover para **In Progress** e **In Review** é manual (arrastar o card).
 
 ### 6.7 Validar o fluxo **[manual]** — task T02
 
-Use a própria task T02: mover para *In Progress* → criar a branch pela issue → commit do `.gitattributes` descrito nela → PR para `develop` → *In Review* → aprovação → *Squash and merge* → a issue fecha e o card vai para *Done* sozinho.
+Use a própria task T02: mover para *In Progress* → criar a branch pela issue → commit do `.gitattributes` descrito nela → PR para `develop` → *In Review* → aprovação → *Squash and merge* → fechar a issue → o card vai para *Done* sozinho (automação *Item closed*).
 
 ## 7. Labels, milestones e tasks
 
@@ -424,7 +426,15 @@ Só pegue uma task quando todas as dependências dela estiverem em **Done**. Tas
 
 ### 8.2 Criar a branch
 
-Pela issue: *Development → Create a branch* → **source `develop`** → nome sugerido na issue. Ou:
+Pela issue: *Development → Create a branch* → **source `develop`** → nome sugerido na issue. Depois, na sua máquina:
+
+```bash
+git switch develop && git pull
+git fetch origin
+git switch feature/9-urgency
+```
+
+Ou crie direto pelo terminal:
 
 ```bash
 git switch develop && git pull
@@ -464,11 +474,13 @@ O revisor aprova (*Review changes → Approve*) ou pede mudanças (o card volta 
 
 ### 8.6 Merge
 
-**Squash and merge**: os commits da branch viram um commit na `develop` com o título do PR, e continuam visíveis na aba *Commits* do PR. A branch é apagada e o card vai para **Done**.
+**Squash and merge**: os commits da branch viram um commit na `develop` com o título do PR, e continuam visíveis na aba *Commits* do PR. A branch remota é apagada.
+
+A branch padrão do repositório é a `main`, então o `Closes #9` de um PR para a `develop` **não** fecha a issue no merge. Depois do merge, feche a issue (botão *Close issue* ou `gh issue close 9`): a automação *Item closed* leva o card para **Done**.
 
 ```bash
 git switch develop && git pull
-git branch -d feature/9-urgency
+git branch -D feature/9-urgency   # -D: com squash, o Git não reconhece a branch como mergeada
 ```
 
 ### 8.7 Branch desatualizada
