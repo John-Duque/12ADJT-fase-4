@@ -357,4 +357,5 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 
 | Nome | RM | GitHub |
 |---|---|---|
-| | | |
+| John Pablo da Silva Gomes | RM372387 | [@John-Duque](https://github.com/John-Duque) |
+| Jefferson Ricardo dos Santos | RM371825 | [@jeffesa](https://github.com/jeffesa) |
