@@ -48,6 +48,8 @@
         <sonar.organization>john-duque</sonar.organization>
         <sonar.projectKey>John-Duque_12ADJT-fase-4</sonar.projectKey>
         <sonar.projectName>12ADJT-fase-4</sonar.projectName>
+        <!-- O evento repete os campos e getters do Feedback de propósito (contrato da fila separado da entidade) -->
+        <sonar.cpd.exclusions>**/domain/feedback/event/CriticalFeedbackEvent.java</sonar.cpd.exclusions>
     </properties>
 
     <dependencyManagement>
