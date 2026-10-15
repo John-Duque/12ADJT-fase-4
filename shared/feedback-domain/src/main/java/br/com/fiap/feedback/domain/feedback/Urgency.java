@@ -1,10 +1,6 @@
 package br.com.fiap.feedback.domain.feedback;
 
-/**
- * Urgência de um feedback, derivada da nota de 0 a 10.
- *
- * <p>Notas de 0 a 3 são {@link #HIGH} (críticas), de 4 a 6 são {@link #MEDIUM} e de 7 a 10 são {@link #LOW}.
- */
+/** Urgência do feedback pela nota: 0 a 3 HIGH, 4 a 6 MEDIUM, 7 a 10 LOW. */
 public enum Urgency {
     HIGH,
     MEDIUM,
@@ -16,11 +12,7 @@ public enum Urgency {
     private static final int HIGH_UPPER_BOUND = 3;
     private static final int MEDIUM_UPPER_BOUND = 6;
 
-    /**
-     * Classifica a nota em uma urgência.
-     *
-     * @throws InvalidFeedbackException se a nota estiver fora de 0 a 10
-     */
+    /** Classifica a nota em uma urgência. Lança InvalidFeedbackException se a nota estiver fora de 0 a 10. */
     public static Urgency fromRating(int rating) {
         if (rating < MIN_RATING || rating > MAX_RATING) {
             throw new InvalidFeedbackException(
@@ -35,7 +27,7 @@ public enum Urgency {
         return LOW;
     }
 
-    /** Só a urgência {@link #HIGH} gera alerta imediato aos administradores. */
+    /** Só HIGH é crítica. */
     public boolean isCritical() {
         return this == HIGH;
     }
