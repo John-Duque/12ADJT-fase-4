@@ -2,7 +2,6 @@ package br.com.fiap.feedback.domain.feedback;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.util.Objects;
 import java.util.UUID;
 
 /** Avaliação de uma aula. O construtor valida todas as regras, então não existe Feedback inválido. */
@@ -17,8 +16,14 @@ public final class Feedback {
     private final Instant createdAt;
 
     public Feedback(UUID id, String description, int rating, Urgency urgency, Instant createdAt) {
-        this.id = Objects.requireNonNull(id, "id é obrigatório");
-        this.createdAt = Objects.requireNonNull(createdAt, "createdAt é obrigatório");
+        if (id == null) {
+            throw new IllegalArgumentException("id é obrigatório");
+        }
+        if (createdAt == null) {
+            throw new IllegalArgumentException("createdAt é obrigatório");
+        }
+        this.id = id;
+        this.createdAt = createdAt;
         this.description = validateDescription(description);
         this.rating = rating;
         this.urgency = validateUrgency(urgency, rating);
@@ -26,7 +31,9 @@ public final class Feedback {
 
     /** Cria um novo feedback: gera o id, calcula a urgência pela nota e usa o relógio como data de envio. */
     public static Feedback create(String description, int rating, Clock clock) {
-        Objects.requireNonNull(clock, "clock é obrigatório");
+        if (clock == null) {
+            throw new IllegalArgumentException("clock é obrigatório");
+        }
         return new Feedback(UUID.randomUUID(), description, rating, Urgency.fromRating(rating), clock.instant());
     }
 
