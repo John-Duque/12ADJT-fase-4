@@ -79,6 +79,22 @@ class FeedbackTest {
     }
 
     @Test
+    @DisplayName("Rejeita id, data de envio ou relógio nulos")
+    void shouldRejectMissingRequiredFields() {
+        var id = UUID.randomUUID();
+
+        assertThatThrownBy(() -> new Feedback(null, "texto", 10, Urgency.LOW, NOW))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("id é obrigatório");
+        assertThatThrownBy(() -> new Feedback(id, "texto", 10, Urgency.LOW, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("createdAt é obrigatório");
+        assertThatThrownBy(() -> Feedback.create("texto", 10, null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("clock é obrigatório");
+    }
+
+    @Test
     @DisplayName("Considera iguais os feedbacks com o mesmo id")
     void shouldBeEqualById() {
         var id = UUID.randomUUID();
