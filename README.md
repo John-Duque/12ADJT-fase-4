@@ -1,6 +1,6 @@
 # 12ADJT-fase-4 — Plataforma de Feedback Serverless
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml)
+[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=John-Duque_12ADJT-fase-4&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=John-Duque_12ADJT-fase-4)
 
 Plataforma em que **estudantes avaliam as aulas** de um curso on-line e **administradores acompanham a satisfação**: avaliações críticas geram um alerta imediato por e-mail e, toda semana, um relatório consolidado chega aos administradores.
 
