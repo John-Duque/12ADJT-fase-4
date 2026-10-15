@@ -16,6 +16,7 @@
          shared/feedback-domain, functions/feedback-ingestion, functions/critical-notifier, functions/weekly-report -->
     <modules>
         <module>shared/feedback-domain</module>
+        <module>functions/feedback-ingestion</module>
     </modules>
 
     <properties>
