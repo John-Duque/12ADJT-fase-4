@@ -1,0 +1,43 @@
+# Sobe as três funções localmente, cada uma em sua imagem (mesmo Dockerfile, MODULE/PORT diferentes).
+#   docker compose up --build -d
+#   docker compose ps
+name: 12adjt-fase-4
+
+services:
+  feedback-ingestion:
+    build:
+      context: .
+      args:
+        MODULE: feedback-ingestion
+        PORT: 8081
+    image: 12adjt-fase-4/feedback-ingestion:local
+    ports:
+      - "8081:8081"
+    mem_limit: 512m
+    restart: unless-stopped
+
+  critical-notifier:
+    build:
+      context: .
+      args:
+        MODULE: critical-notifier
+        PORT: 8082
+    image: 12adjt-fase-4/critical-notifier:local
+    ports:
+      - "8082:8082"
+    mem_limit: 512m
+    restart: unless-stopped
+
+  weekly-report:
+    build:
+      context: .
+      args:
+        MODULE: weekly-report
+        PORT: 8083
+    image: 12adjt-fase-4/weekly-report:local
+    ports:
+      - "8083:8083"
+    environment:
+      REPORT_ZONE_ID: America/Sao_Paulo
+    mem_limit: 512m
+    restart: unless-stopped
