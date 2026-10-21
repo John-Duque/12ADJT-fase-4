@@ -257,7 +257,7 @@ O trabalho está dividido em 10 milestones e 51 tasks numeradas (T01 a T51) no G
 | 3. Função feedback-ingestion | `POST /avaliacao` com validação e tratamento de erros | ⏳ |
 | 4. Função critical-notifier | Consumo do evento e e-mail de urgência | ⏳ |
 | 5. Função weekly-report | Agregações e relatório semanal | ⏳ |
-| 6. Docker | Dockerfile multi-stage, Compose e imagens no CI | ⏳ |
+| 6. Docker | Dockerfile multi-stage, Compose e imagens no CI | 🔄 em andamento |
 | 7. Infraestrutura cloud | Conta, IaC, banco, fila, e-mail e segurança | ⏳ |
 | 8. Integração com a nuvem | Extensões do provedor e gateways reais | ⏳ |
 | 9. Deploy e observabilidade | Deploy automatizado, monitoramento e alarmes | ⏳ |
@@ -298,13 +298,23 @@ curl -i -X POST localhost:8081/avaliacao \
 
 ### Com Docker
 
-Disponível a partir da milestone 6:
+Um único `Dockerfile` multi-stage gera a imagem de cada função (escolhida por `--build-arg MODULE`), e o `compose.yaml` sobe as três juntas:
 
 ```bash
-docker compose up --build -d     # sobe as três funções
-docker compose ps                # health check de cada uma
+docker compose up --build -d     # sobe as três funções (8081, 8082 e 8083)
+docker compose ps                # cada serviço deve aparecer como healthy
+make smoke                       # chama /avaliacao, /notify-critical-feedback e /generate-weekly-report
 docker compose down
 ```
+
+Para uma função só:
+
+```bash
+docker compose up --build -d feedback-ingestion                       # sobe só o serviço escolhido
+docker build --target test --build-arg MODULE=feedback-ingestion .    # roda os testes dela dentro do Docker
+```
+
+`make` sem argumentos lista os outros atalhos (`verify`, `dev-ingestion`, `docker-test`, `logs`, `clean`…).
 
 ---
 
