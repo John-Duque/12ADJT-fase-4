@@ -25,13 +25,25 @@ jobs:
         include:
           - module: feedback-ingestion
             port: 8081
-            description: Recebe POST /avaliacao, valida, grava a avaliação e publica as críticas na fila
+            description: >-
+              Função HTTP de entrada da plataforma de feedback. POST /avaliacao com {"descricao": texto, "nota": 0 a 10}:
+              valida, classifica a urgência (0-3 HIGH, 4-6 MEDIUM, 7-10 LOW), grava e publica as críticas para o critical-notifier.
+              Responde 201 com id, urgencia e dataEnvio, ou 400 com a mensagem da validação. Porta 8081, health em /q/health.
+              Documentação: functions/feedback-ingestion/README.md
           - module: critical-notifier
             port: 8082
-            description: Consome a fila de avaliações críticas e envia o e-mail de urgência aos administradores
+            description: >-
+              Função que avisa os administradores sobre avaliações críticas. Recebe o CriticalFeedbackEvent da fila
+              (localmente, POST /notify-critical-feedback) e, se a urgência for HIGH, envia o alerta com descrição, urgência
+              e data de envio; responde feedbackId e notified. Porta 8082, health em /q/health.
+              Documentação: functions/critical-notifier/README.md
           - module: weekly-report
             port: 8083
-            description: "Gera o relatório semanal: avaliações por dia, por urgência e média das notas"
+            description: >-
+              Função agendada que consolida a semana: avaliações dos 7 dias anteriores com quantidade por dia, por urgência
+              e média das notas, entregue aos administradores (localmente, POST /generate-weekly-report). Fuso configurável
+              por REPORT_ZONE_ID (padrão America/Sao_Paulo). Porta 8083, health em /q/health.
+              Documentação: functions/weekly-report/README.md
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -57,6 +69,7 @@ jobs:
           labels: |
             org.opencontainers.image.title=${{ matrix.module }}
             org.opencontainers.image.description=${{ matrix.description }}
+            org.opencontainers.image.documentation=${{ github.server_url }}/${{ github.repository }}/tree/main/functions/${{ matrix.module }}
 
       - name: Build da imagem
         uses: docker/build-push-action@v7
