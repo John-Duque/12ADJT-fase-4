@@ -91,11 +91,13 @@ A fila entre o recebimento e a notificação desacopla as duas funções: se o e
 
 | Função | Responsabilidade única | Gatilho | Entrada | Saída |
 |---|---|---|---|---|
-| `feedback-ingestion` | Receber, validar e gravar a avaliação; publicar as críticas | HTTP `POST /avaliacao` | JSON da avaliação | Registro no banco; evento na fila (se crítica); resposta `201` |
-| `critical-notifier` | Avisar os administradores sobre avaliações críticas | Mensagem na fila de críticos | `CriticalFeedbackEvent` | E-mail de urgência |
-| `weekly-report` | Consolidar a semana e enviar o relatório | Agendamento semanal | — | E-mail com o relatório |
+| [`feedback-ingestion`](functions/feedback-ingestion/README.md) | Receber, validar e gravar a avaliação; publicar as críticas | HTTP `POST /avaliacao` | JSON da avaliação | Registro no banco; evento na fila (se crítica); resposta `201` |
+| [`critical-notifier`](functions/critical-notifier/README.md) | Avisar os administradores sobre avaliações críticas | Mensagem na fila de críticos | `CriticalFeedbackEvent` | E-mail de urgência |
+| [`weekly-report`](functions/weekly-report/README.md) | Consolidar a semana e enviar o relatório | Agendamento semanal | — | E-mail com o relatório |
 
 Cada função tem **um motivo para mudar**: o contrato da API, o canal de notificação ou as métricas do relatório. É essa separação que o Tech Challenge avalia.
+
+Cada uma tem o próprio README, com contrato, exemplos de requisição, como rodar e como testar: [feedback-ingestion](functions/feedback-ingestion/README.md), [critical-notifier](functions/critical-notifier/README.md) e [weekly-report](functions/weekly-report/README.md).
 
 ---
 
