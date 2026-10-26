@@ -83,3 +83,15 @@ jobs:
           echo "::error title=Smoke test::${{ matrix.module }} não ficou pronta em /q/health/ready"
           docker logs smoke
           exit 1
+
+      - name: Login no GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Publicar no GHCR
+        if: github.event_name == 'push'
+        run: docker push --all-tags "$IMAGE"
