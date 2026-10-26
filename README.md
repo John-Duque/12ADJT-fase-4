@@ -251,16 +251,16 @@ Portas locais: `feedback-ingestion` **8081**, `critical-notifier` **8082**, `wee
 
 ## Roadmap
 
-O trabalho está dividido em 10 milestones e 51 tasks numeradas (T01 a T51) no GitHub Project, visualizado como Board. Cada task diz de quais outras depende, é feita numa branch própria e tem um passo a passo em que cada passo é um commit.
+O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no GitHub Project, visualizado como Board. Cada task diz de quais outras depende, é feita numa branch própria e tem um passo a passo em que cada passo é um commit.
 
 | Milestone | Entrega | Status |
 |---|---|---|
 | 1. Fundação | Sonar, Project, grupo e ADRs | 🔄 em andamento |
-| 2. Domínio | Módulo `feedback-domain`: exceções, `Urgency`, `Feedback`, evento crítico | ⏳ |
-| 3. Função feedback-ingestion | `POST /avaliacao` com validação e tratamento de erros | ⏳ |
-| 4. Função critical-notifier | Consumo do evento e e-mail de urgência | ⏳ |
-| 5. Função weekly-report | Agregações e relatório semanal | ⏳ |
-| 6. Docker | Dockerfile multi-stage, Compose e imagens no CI | 🔄 em andamento |
+| 2. Domínio | Módulo `feedback-domain`: exceções, `Urgency`, `Feedback`, evento crítico | ✅ concluída |
+| 3. Função feedback-ingestion | `POST /avaliacao` com validação e tratamento de erros | ✅ concluída |
+| 4. Função critical-notifier | Consumo do evento e e-mail de urgência | ✅ concluída |
+| 5. Função weekly-report | Agregações e relatório semanal | ✅ concluída |
+| 6. Docker | Dockerfile multi-stage, Compose, imagens no CI e no GHCR, testes locais | ✅ concluída |
 | 7. Infraestrutura cloud | Conta, IaC, banco, fila, e-mail e segurança | ⏳ |
 | 8. Integração com a nuvem | Extensões do provedor e gateways reais | ⏳ |
 | 9. Deploy e observabilidade | Deploy automatizado, monitoramento e alarmes | ⏳ |
