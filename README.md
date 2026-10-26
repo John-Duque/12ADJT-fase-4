@@ -19,6 +19,7 @@ Projeto do **Tech Challenge – Fase 4 (POS TECH · Arquitetura e Desenvolviment
 - [Estrutura do repositório](#estrutura-do-repositório)
 - [Roadmap](#roadmap)
 - [Como rodar](#como-rodar)
+  - [Como testar localmente](#como-testar-localmente)
 - [Qualidade e automação](#qualidade-e-automação)
 - [Fluxo de trabalho](#fluxo-de-trabalho)
 - [Documentação](#documentação)
@@ -293,9 +294,7 @@ cd functions/feedback-ingestion && mvn quarkus:dev          # http://localhost:8
 ```
 
 ```bash
-curl -i -X POST localhost:8081/avaliacao \
-  -H 'Content-Type: application/json' \
-  -d '{"descricao": "Aula sem áudio", "nota": 2}'
+curl -i -X POST localhost:8081/avaliacao -H 'Content-Type: application/json' -d '{"descricao": "Aula sem áudio", "nota": 2}'
 ```
 
 ### Com Docker
@@ -317,6 +316,97 @@ docker build --target test --build-arg MODULE=feedback-ingestion .    # roda os 
 ```
 
 `make` sem argumentos lista os outros atalhos (`verify`, `dev-ingestion`, `docker-test`, `logs`, `clean`…).
+
+### Como testar localmente
+
+**1. Subir as funções**
+
+```bash
+make up      # sobe as três funções com o compose (8081, 8082 e 8083)
+make ps      # os três serviços devem aparecer como healthy
+```
+
+Para uma função só em modo dev: `make dev-ingestion`, `make dev-notifier` ou `make dev-report`.
+
+**2. Testar com `curl`**
+
+Cada comando em **uma linha só**: ao colar um comando quebrado com `\`, um espaço depois da `\` separa o comando em dois no zsh.
+
+```bash
+curl -i -X POST localhost:8081/avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
+curl -i -X POST localhost:8082/notify-critical-feedback -H 'Content-Type: application/json' -d '{"id":"8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11","description":"Aula sem áudio","rating":1,"urgency":"HIGH","createdAt":"2026-10-13T12:00:00Z"}'
+curl -i -X POST localhost:8083/generate-weekly-report
+```
+
+| Caso | Esperado |
+|---|---|
+| `POST /avaliacao` com nota 9 / 5 / 2 | `201` com `urgencia` `LOW` / `MEDIUM` / `HIGH`, `id` e `dataEnvio` |
+| Nota 11 ou -1, sem `descricao`, `descricao` em branco, sem `nota`, sem corpo | `400` com a mensagem da validação |
+| Evento `HIGH` / `LOW` no notifier | `200` com `notified` `true` / `false` |
+| Relatório | `200` com o período, `totalFeedbacks = 0` e os 7 dias em `countByDay` |
+| `GET /q/health/ready` nas três portas | `200` com `status = UP` |
+
+O `curl` de cada caso, com a resposta completa, está no README da função: [feedback-ingestion](functions/feedback-ingestion/README.md), [critical-notifier](functions/critical-notifier/README.md) e [weekly-report](functions/weekly-report/README.md).
+
+**3. Testar com Postman**
+
+A coleção [`docs/postman/12adjt-fase-4.postman_collection.json`](docs/postman/12adjt-fase-4.postman_collection.json) tem uma pasta por função com todos os casos da tabela (15 requisições), e cada requisição confere o status e os campos da resposta.
+
+1. No Postman: **Import** → selecione o arquivo da coleção.
+2. Abra a coleção → **Run** (*Collection Runner*) → **Run 12ADJT-fase-4**.
+
+As URLs ficam nas variáveis da coleção (`ingestionUrl`, `notifierUrl`, `reportUrl`). Sem o Postman instalado, rode pelo terminal:
+
+```bash
+npx newman run docs/postman/12adjt-fase-4.postman_collection.json
+```
+
+**4. O que aparece nos logs** (`make logs`)
+
+```
+Feedback crítico publicado: id=... urgencia=HIGH
+[ALERTA] urgencia=HIGH dataEnvio=2026-10-13T12:00:00Z descricao=Aula sem áudio
+Evento ignorado: feedback 3c6e0b8a-... não é crítico (urgencia=LOW)
+Relatório 2026-10-19 a 2026-10-25: total=0 media=0.00 porUrgencia={HIGH=0, MEDIUM=0, LOW=0}
+```
+
+**5. O que dá e o que ainda não dá para testar localmente**
+
+| Dá para testar | Ainda não dá (chega com as milestones 7 e 8) |
+|---|---|
+| Contrato e validações do `POST /avaliacao` | Integração entre as funções: cada container tem os próprios dados e a fila ainda é só um log, então o notifier é chamado direto, simulando a mensagem |
+| Classificação de urgência pela nota | Relatório com dados: o gateway provisório devolve uma lista vazia |
+| Alerta do notifier (no log) | E-mail real aos administradores |
+| Período e estrutura do relatório | Publicação no GHCR (só no `push` do GitHub Actions) |
+| Health checks, imagens Docker e o smoke test do workflow | |
+
+Comportamento atual: um evento inválido no notifier (descrição em branco ou urgência que não bate com a nota) responde **500**. Na AWS, a mensagem volta para a fila e, depois de 3 tentativas, vai para a DLQ.
+
+**6. Validar o workflow Docker localmente**
+
+```bash
+docker run --rm -v "$PWD:/repo" -w /repo rhysd/actionlint:latest    # sintaxe do workflow; sem saída = sem erros
+```
+
+O mesmo build e smoke test do job `Imagem <função>`, para as três funções:
+
+```bash
+for entry in feedback-ingestion:8081 critical-notifier:8082 weekly-report:8083; do
+  module=${entry%%:*}; port=${entry##*:}
+  docker build --target runtime --build-arg MODULE=$module --build-arg PORT=$port -t teste/$module . || break
+  docker rm -f smoke >/dev/null 2>&1
+  docker run -d --name smoke -p "$port:$port" teste/$module >/dev/null
+  ok=0
+  for attempt in $(seq 1 30); do
+    curl -fsS "localhost:$port/q/health/ready" >/dev/null 2>&1 && { echo "✅ $module pronta"; ok=1; break; }
+    sleep 2
+  done
+  [ $ok = 1 ] || { echo "❌ $module não ficou pronta"; docker logs smoke; }
+  docker rm -f smoke >/dev/null
+done
+```
+
+Rode da raiz do repositório (onde está o `Dockerfile`) e com `make down` antes, para as portas estarem livres.
 
 ---
 
@@ -356,6 +446,7 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branches, commits, PR e regras de código | ✅ |
 | [docs/guia-github.md](docs/guia-github.md) | GitHub, rulesets, Sonar, Project e rotina do grupo | ✅ |
 | [docs/adr](docs/adr) | Decisões de arquitetura | 🔄 |
+| [docs/postman](docs/postman) | Coleção do Postman com os testes locais das funções | ✅ |
 | `docs/arquitetura.md` | Modelo de cloud e componentes | ⏳ |
 | `docs/funcoes.md` | Documentação de cada função | ⏳ |
 | `docs/deploy.md` | Instruções de deploy | ⏳ |
