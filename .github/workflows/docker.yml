@@ -25,10 +25,13 @@ jobs:
         include:
           - module: feedback-ingestion
             port: 8081
+            description: Recebe POST /avaliacao, valida, grava a avaliação e publica as críticas na fila
           - module: critical-notifier
             port: 8082
+            description: Consome a fila de avaliações críticas e envia o e-mail de urgência aos administradores
           - module: weekly-report
             port: 8083
+            description: "Gera o relatório semanal: avaliações por dia, por urgência e média das notas"
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -50,6 +53,10 @@ jobs:
             type=ref,event=pr
             type=sha,format=short
             type=raw,value=latest,enable={{is_default_branch}}
+          # Sem isso as três imagens mostram a descrição do repositório no GHCR
+          labels: |
+            org.opencontainers.image.title=${{ matrix.module }}
+            org.opencontainers.image.description=${{ matrix.description }}
 
       - name: Build da imagem
         uses: docker/build-push-action@v7
