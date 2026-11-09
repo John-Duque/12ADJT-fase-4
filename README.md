@@ -46,7 +46,7 @@ Uma aplicação hospedada em nuvem, com **funções serverless** que automatizam
 | Requisito | Como será atendido |
 |---|---|
 | Implementar serverless (obrigatório) | Três funções em Quarkus, publicadas como funções do provedor de nuvem |
-| Rodar em ambiente cloud (obrigatório) | Provedor definido na ADR 0002 |
+| Rodar em ambiente cloud (obrigatório) | AWS, região `us-east-1` ([ADR 0002](docs/adr/0002-provedor-de-nuvem.md)) |
 | No mínimo duas funções, com responsabilidade única | Três funções, cada uma com um único motivo para mudar e um gatilho próprio |
 | Segurança dos dados e governança de acesso | Identidade por função com privilégio mínimo, criptografia, segredos em cofre, MFA |
 | Componentes de suporte (banco etc.) | Banco gerenciado, fila com DLQ, serviço de e-mail e agendador |
@@ -155,7 +155,7 @@ Contém **descrição**, **urgência** e **data de envio** da avaliação.
 | **SonarQube Cloud** | Qualidade | Bugs, vulnerabilidades, duplicação e cobertura em cada PR |
 | **GitHub Actions** | CI/CD | Build, testes, análise, imagens Docker e deploy |
 | **Docker** | Containers | Imagem multi-stage por função e execução local com Compose |
-| **Provedor de nuvem e IaC** | Infraestrutura | A definir nas ADRs 0002 e 0003 |
+| **AWS** | Nuvem | Lambda, DynamoDB, SQS, SNS, EventBridge Scheduler e CloudWatch, só no nível sempre gratuito (ADR 0002); IaC a definir na ADR 0003 |
 
 ---
 
@@ -190,7 +190,7 @@ Registradas como ADRs em [`docs/adr`](docs/adr):
 | ADR | Decisão |
 |---|---|
 | 0001 | Monorepo Maven, Quarkus e Clean Architecture |
-| 0002 | Provedor de nuvem |
+| 0002 | Provedor de nuvem: AWS |
 | 0003 | Ferramenta de infraestrutura como código |
 
 ---
