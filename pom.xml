@@ -34,6 +34,8 @@
 
         <!-- Dependências fora do BOM do Quarkus -->
         <assertj.version>3.27.3</assertj.version>
+        <!-- SDK da AWS usado pelos gateways reais (DynamoDB, SQS e SNS) -->
+        <awssdk.version>2.57.12</awssdk.version>
 
         <!-- Plugins -->
         <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
@@ -61,6 +63,13 @@
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
                 <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -7,7 +7,7 @@ Função de entrada da plataforma: recebe a avaliação do estudante, valida, cl
 | Gatilho | HTTP `POST /avaliacao` (Quarkus REST) |
 | Porta local | `8081` |
 | Imagem | `ghcr.io/john-duque/12adjt-fase-4/feedback-ingestion` |
-| Na AWS | Lambda exposta por Function URL (milestone 8) |
+| Na AWS | Lambda exposta por Function URL (build com o profile `lambda`) |
 
 ## Contrato
 
@@ -84,10 +84,52 @@ Testes automatizados: `mvn -pl functions/feedback-ingestion -am verify`.
 | application | `ReceiveFeedbackUseCase`, `ReceiveFeedbackInput`, gateways `FeedbackGateway` e `CriticalFeedbackEventGateway` |
 | infra | `FeedbackController` e DTOs (`FeedbackRequest`, `FeedbackResponse`), `GlobalExceptionHandler`, `UseCaseConfig` |
 
-Gateways provisórios até a integração com a AWS: `InMemoryFeedbackGateway` (grava em memória) e `LoggingCriticalFeedbackEventGateway` (só loga o evento). As implementações reais (DynamoDB e SQS) os substituem sem mudar domain nem application.
+Os gateways dependem do build:
+
+| Build | Banco | Fila |
+|---|---|---|
+| Padrão (dev mode, Docker, compose, testes) | `InMemoryFeedbackGateway` (memória) | `LoggingCriticalFeedbackEventGateway` (só loga) |
+| Profile `lambda` (AWS) | `DynamoDbFeedbackGateway` (`PutItem` na tabela) | `SqsCriticalFeedbackEventGateway` (`SendMessage` do evento em JSON) |
+
+A troca é feita no build pela propriedade `feedback.aws.enabled` (`@IfBuildProperty`), que só o profile `lambda` liga. Domain e application não mudam.
+
+## Build para a AWS
+
+```bash
+mvn -pl functions/feedback-ingestion -am package -Plambda -DskipTests   # gera functions/feedback-ingestion/target/function.zip
+```
+
+| | |
+|---|---|
+| Runtime | `java21` |
+| Handler | `io.quarkus.amazon.lambda.runtime.QuarkusStreamHandler::handleRequest` |
+| Exposição | Function URL (evento HTTP 2.0) |
+
+Item gravado no DynamoDB:
+
+| Atributo | Tipo | Exemplo |
+|---|---|---|
+| `id` | S (chave de partição) | `04efaa14-658b-4c6f-b550-f4bd5bd788a7` |
+| `description` | S | `Aula sem áudio` |
+| `rating` | N | `2` |
+| `urgency` | S | `HIGH` |
+| `createdAt` | S, UTC com 9 casas (ordena como texto) | `2026-10-26T18:26:09.210797842Z` |
+| `createdDay` | S, dia em UTC (partição do índice `por-dia`) | `2026-10-26` |
+
+Mensagem publicada no SQS para as avaliações críticas (contrato com o `critical-notifier`):
+
+```json
+{"id":"8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11","description":"Aula sem áudio","rating":1,"urgency":"HIGH","createdAt":"2026-10-13T12:00:00Z"}
+```
+
+Se o envio para a fila falhar, a função loga `Falha ao publicar feedback crítico na fila: id=...` e responde `500`. A avaliação já foi gravada no banco.
 
 ## Configuração
 
 | Propriedade | Variável de ambiente | Padrão |
 |---|---|---|
 | `quarkus.http.port` | `QUARKUS_HTTP_PORT` | `8081` |
+| `feedback.table` | `FEEDBACK_TABLE` | `feedbacks` (só no profile `lambda`) |
+| `critical.queue.url` | `CRITICAL_QUEUE_URL` | sem padrão; obrigatória no profile `lambda` |
+
+Na Lambda, a região e as credenciais vêm do próprio ambiente (`AWS_REGION` e o papel IAM da função).
