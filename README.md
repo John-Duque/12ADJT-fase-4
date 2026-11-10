@@ -155,7 +155,8 @@ Contém **descrição**, **urgência** e **data de envio** da avaliação.
 | **SonarQube Cloud** | Qualidade | Bugs, vulnerabilidades, duplicação e cobertura em cada PR |
 | **GitHub Actions** | CI/CD | Build, testes, análise, imagens Docker e deploy |
 | **Docker** | Containers | Imagem multi-stage por função e execução local com Compose |
-| **AWS** | Nuvem | Lambda, DynamoDB, SQS, SNS, EventBridge Scheduler e CloudWatch, só no nível sempre gratuito (ADR 0002); IaC a definir na ADR 0003 |
+| **AWS** | Nuvem | Lambda, DynamoDB, SQS, SNS, EventBridge Scheduler e CloudWatch, só no nível sempre gratuito (ADR 0002) |
+| **Terraform** | Infraestrutura como código | State no HCP Terraform (plano gratuito), `plan` nos PRs e `apply` pelo GitHub Actions via OIDC (ADR 0003) |
 
 ---
 
@@ -191,7 +192,7 @@ Registradas como ADRs em [`docs/adr`](docs/adr):
 |---|---|
 | 0001 | Monorepo Maven, Quarkus e Clean Architecture |
 | 0002 | Provedor de nuvem: AWS |
-| 0003 | Ferramenta de infraestrutura como código |
+| 0003 | Infraestrutura como código: Terraform |
 
 ---
 
