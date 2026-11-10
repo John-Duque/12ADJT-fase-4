@@ -7,3 +7,13 @@ output "feedback_table" {
   description = "Nome da tabela de feedbacks"
   value       = module.feedback_table.name
 }
+
+output "critical_queue_url" {
+  description = "URL da fila de feedbacks críticos"
+  value       = module.critical_queue.url
+}
+
+output "critical_dlq_url" {
+  description = "URL da DLQ da fila de críticos"
+  value       = module.critical_queue.dlq_url
+}
