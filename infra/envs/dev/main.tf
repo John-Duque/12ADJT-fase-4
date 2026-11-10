@@ -171,3 +171,15 @@ module "report_function" {
     JAVA_TOOL_OPTIONS  = local.java_tool_options
   }
 }
+
+# Toda segunda às 08:00 de São Paulo: relatório da semana anterior (segunda a domingo)
+module "report_schedule" {
+  source = "../../modules/schedule"
+
+  name                = "feedback-weekly-report"
+  description         = "Gera e envia o relatório semanal de avaliações"
+  role_name           = "feedback-scheduler"
+  schedule_expression = "cron(0 8 ? * MON *)"
+  timezone            = "America/Sao_Paulo"
+  target_arn          = module.report_function.alias_arn
+}

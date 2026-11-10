@@ -41,3 +41,8 @@ output "function_names" {
     report    = module.report_function.name
   }
 }
+
+output "report_schedule" {
+  description = "Agenda do relatório semanal"
+  value       = module.report_schedule.name
+}
