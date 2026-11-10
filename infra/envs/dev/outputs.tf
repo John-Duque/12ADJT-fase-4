@@ -27,3 +27,17 @@ output "report_topic_arn" {
   description = "Tópico do relatório semanal"
   value       = module.report_topic.arn
 }
+
+output "ingestion_url" {
+  description = "Function URL da ingestão (POST <url>avaliacao)"
+  value       = module.ingestion_function.url
+}
+
+output "function_names" {
+  description = "Nomes das funções Lambda"
+  value = {
+    ingestion = module.ingestion_function.name
+    notifier  = module.notifier_function.name
+    report    = module.report_function.name
+  }
+}
