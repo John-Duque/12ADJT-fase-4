@@ -21,13 +21,24 @@
             <groupId>io.quarkus</groupId>
             <artifactId>quarkus-arc</artifactId>
         </dependency>
+        <!-- Gateway real na AWS, ativo só no build do profile lambda (feedback.aws.enabled) -->
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-funqy-http</artifactId>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>sns</artifactId>
+            <exclusions>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>apache-client</artifactId>
+                </exclusion>
+                <exclusion>
+                    <groupId>software.amazon.awssdk</groupId>
+                    <artifactId>netty-nio-client</artifactId>
+                </exclusion>
+            </exclusions>
         </dependency>
         <dependency>
-            <groupId>io.quarkus</groupId>
-            <artifactId>quarkus-smallrye-health</artifactId>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>url-connection-client</artifactId>
         </dependency>
 
         <dependency>
@@ -55,4 +66,49 @@
             </plugin>
         </plugins>
     </build>
+
+    <profiles>
+        <!-- Build padrão: Funqy sobre HTTP e health check (dev mode, Docker, compose e testes).
+             Fica desligado quando outro profile é escolhido com -P, então não entra no zip da Lambda. -->
+        <profile>
+            <id>http</id>
+            <activation>
+                <activeByDefault>true</activeByDefault>
+            </activation>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-funqy-http</artifactId>
+                </dependency>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-smallrye-health</artifactId>
+                </dependency>
+            </dependencies>
+        </profile>
+        <!-- Deploy na AWS: mvn package -Plambda -DskipTests gera target/function.zip (Funqy acionado pelo SQS) -->
+        <profile>
+            <id>lambda</id>
+            <dependencies>
+                <dependency>
+                    <groupId>io.quarkus</groupId>
+                    <artifactId>quarkus-funqy-amazon-lambda</artifactId>
+                </dependency>
+            </dependencies>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>${quarkus.platform.group-id}</groupId>
+                        <artifactId>quarkus-maven-plugin</artifactId>
+                        <configuration>
+                            <!-- Troca o gateway provisório pelo do SNS -->
+                            <systemProperties>
+                                <feedback.aws.enabled>true</feedback.aws.enabled>
+                            </systemProperties>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>
