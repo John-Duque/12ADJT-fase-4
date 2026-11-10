@@ -256,7 +256,7 @@ O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no G
 
 | Milestone | Entrega | Status |
 |---|---|---|
-| 1. Fundação | Sonar, Project, grupo e ADRs | 🔄 em andamento |
+| 1. Fundação | Sonar, Project, grupo e ADRs | ✅ concluída |
 | 2. Domínio | Módulo `feedback-domain`: exceções, `Urgency`, `Feedback`, evento crítico | ✅ concluída |
 | 3. Função feedback-ingestion | `POST /avaliacao` com validação e tratamento de erros | ✅ concluída |
 | 4. Função critical-notifier | Consumo do evento e e-mail de urgência | ✅ concluída |
