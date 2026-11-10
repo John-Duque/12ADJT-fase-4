@@ -46,7 +46,7 @@ Uma aplicação hospedada em nuvem, com **funções serverless** que automatizam
 | Requisito | Como será atendido |
 |---|---|
 | Implementar serverless (obrigatório) | Três funções em Quarkus, publicadas como funções do provedor de nuvem |
-| Rodar em ambiente cloud (obrigatório) | AWS, região `us-east-1` ([ADR 0002](docs/adr/0002-provedor-de-nuvem.md)) |
+| Rodar em ambiente cloud (obrigatório) | AWS, região `us-east-2` ([ADR 0002](docs/adr/0002-provedor-de-nuvem.md) e [ADR 0004](docs/adr/0004-conta-aws-simplificada.md)) |
 | No mínimo duas funções, com responsabilidade única | Três funções, cada uma com um único motivo para mudar e um gatilho próprio |
 | Segurança dos dados e governança de acesso | Identidade por função com privilégio mínimo, criptografia, segredos em cofre, MFA |
 | Componentes de suporte (banco etc.) | Banco gerenciado, fila com DLQ, serviço de e-mail e agendador |
@@ -156,7 +156,7 @@ Contém **descrição**, **urgência** e **data de envio** da avaliação.
 | **GitHub Actions** | CI/CD | Build, testes, análise, imagens Docker e deploy |
 | **Docker** | Containers | Imagem multi-stage por função e execução local com Compose |
 | **AWS** | Nuvem | Lambda, DynamoDB, SQS, SNS, EventBridge Scheduler e CloudWatch, só no nível sempre gratuito (ADR 0002) |
-| **Terraform** | Infraestrutura como código | State no HCP Terraform (plano gratuito), `plan` nos PRs e `apply` pelo GitHub Actions via OIDC (ADR 0003) |
+| **Terraform** | Infraestrutura como código | State no HCP Terraform (plano gratuito), `plan` nos PRs e `apply` pelo GitHub Actions com papéis IAM de credenciais temporárias (ADRs 0003 e 0004) |
 
 ---
 
@@ -193,6 +193,7 @@ Registradas como ADRs em [`docs/adr`](docs/adr):
 | 0001 | Monorepo Maven, Quarkus e Clean Architecture |
 | 0002 | Provedor de nuvem: AWS |
 | 0003 | Infraestrutura como código: Terraform |
+| 0004 | Conta AWS no cadastro simplificado: região `us-east-2` e CI sem OIDC |
 
 ---
 
