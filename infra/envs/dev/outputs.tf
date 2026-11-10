@@ -17,3 +17,13 @@ output "critical_dlq_url" {
   description = "URL da DLQ da fila de críticos"
   value       = module.critical_queue.dlq_url
 }
+
+output "critical_topic_arn" {
+  description = "Tópico do e-mail de urgência"
+  value       = module.critical_topic.arn
+}
+
+output "report_topic_arn" {
+  description = "Tópico do relatório semanal"
+  value       = module.report_topic.arn
+}

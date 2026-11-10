@@ -31,6 +31,8 @@ env:
   TF_IN_AUTOMATION: 'true'
   TF_INPUT: 'false'
   TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_app_terraform_io }}
+  # E-mails dos administradores (ex.: {"john":"admin@exemplo.com"}); sensíveis, não aparecem no plan
+  TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS || '{}' }}
   AWS_REGION: us-east-2
 
 defaults:

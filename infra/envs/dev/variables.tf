@@ -15,3 +15,10 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "admin_emails" {
+  description = "E-mails dos administradores por apelido; no CI vem do secret ADMIN_EMAILS (nunca fica no código)"
+  type        = map(string)
+  sensitive   = true
+  default     = {}
+}

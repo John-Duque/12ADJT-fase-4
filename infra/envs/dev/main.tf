@@ -19,3 +19,17 @@ module "critical_queue" {
   name                       = "critical-feedbacks"
   visibility_timeout_seconds = 6 * local.notifier_timeout_seconds
 }
+
+module "critical_topic" {
+  source = "../../modules/notification"
+
+  name   = "feedbacks-criticos"
+  emails = var.admin_emails
+}
+
+module "report_topic" {
+  source = "../../modules/notification"
+
+  name   = "relatorio-semanal"
+  emails = var.admin_emails
+}
