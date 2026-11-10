@@ -7,7 +7,7 @@ Função que consolida a semana: busca as avaliações dos 7 dias anteriores, mo
 | Gatilho | Agendamento semanal (Funqy); localmente, HTTP `POST /generate-weekly-report` |
 | Porta local | `8083` |
 | Imagem | `ghcr.io/john-duque/12adjt-fase-4/weekly-report` |
-| Na AWS | Lambda agendada pelo EventBridge Scheduler (segunda, 8h de São Paulo); e-mail pelo SNS (milestone 8) |
+| Na AWS | Lambda agendada pelo EventBridge Scheduler (segunda, 8h de São Paulo); lê o DynamoDB e envia o e-mail pelo tópico SNS `relatorio-semanal` (build com o profile `lambda`) |
 
 ## Contrato
 
@@ -73,13 +73,72 @@ Testes automatizados: `mvn -pl functions/weekly-report -am verify`.
 |---|---|
 | domain | `WeeklyReport` (neste módulo); `Feedback` e `Urgency` (`shared/feedback-domain`) |
 | application | `GenerateWeeklyReportUseCase`, gateways `FeedbackQueryGateway` e `ReportDeliveryGateway` |
-| infra | `WeeklyReportJob` (`@Funq("generate-weekly-report")`), `UseCaseConfig` |
+| infra | `WeeklyReportJob` (`@Funq("generate-weekly-report")`), `UseCaseConfig`, `AwsClientConfig`, gateways provisórios e reais (abaixo) |
 
-Gateways provisórios até a integração com a AWS: `NoOpFeedbackQueryGateway` (devolve lista vazia) e `LoggingReportDeliveryGateway` (só loga o resumo). As implementações reais (DynamoDB e SNS) os substituem sem mudar domain nem application.
+Os gateways dependem do build:
+
+| Build | Leitura | Entrega | Gatilho |
+|---|---|---|---|
+| Padrão (dev mode, Docker, compose, testes) | `NoOpFeedbackQueryGateway` (lista vazia) | `LoggingReportDeliveryGateway` (só loga) | HTTP, pelo `quarkus-funqy-http` (profile `http`, ativo por padrão) |
+| Profile `lambda` (AWS) | `DynamoDbFeedbackQueryGateway` (`Query` no índice `por-dia`) | `SnsReportDeliveryGateway` (`Publish` no tópico) | EventBridge Scheduler, pelo `quarkus-funqy-amazon-lambda` |
+
+A troca é feita no build pela propriedade `feedback.aws.enabled` (`@IfBuildProperty`), que só o profile `lambda` liga. Com `-Plambda`, o Maven desliga o profile `http`: o zip da Lambda não leva servidor HTTP nem health check. Domain e application não mudam.
+
+## Build para a AWS
+
+```bash
+mvn -pl functions/weekly-report -am package -Plambda -DskipTests   # gera functions/weekly-report/target/function.zip
+```
+
+| | |
+|---|---|
+| Runtime | `java21` |
+| Handler | `io.quarkus.funqy.lambda.FunqyStreamHandler::handleRequest` |
+| Gatilho | EventBridge Scheduler, `cron(0 8 ? * MON *)` no fuso `America/Sao_Paulo` |
+
+### Leitura no DynamoDB
+
+O período são os 7 dias completos anteriores à execução, no fuso de São Paulo; com o agendamento de segunda, vai de segunda a domingo da semana anterior (por exemplo, `2026-10-06T03:00Z` até `2026-10-13T03:00Z`, sem incluir o fim). O índice `por-dia` tem o dia **UTC** (`createdDay`) como partição, então a função faz uma `Query` para cada dia UTC que o período toca (8 consultas numa semana) com `createdAt BETWEEN` as bordas do período. O `createdAt` é gravado com tamanho fixo (9 casas nos segundos), por isso a comparação como texto segue a ordem do tempo. As páginas de cada consulta são lidas até o fim.
+
+### E-mail do relatório
+
+```
+Assunto: Relatório semanal de avaliações: 06/10/2026 a 12/10/2026
+
+Relatório semanal de avaliações
+Período: 06/10/2026 a 12/10/2026 (America/Sao_Paulo)
+
+Total de avaliações: 3
+Média das notas: 5,00
+
+Quantidade por urgência:
+- HIGH: 1
+- MEDIUM: 1
+- LOW: 1
+
+Quantidade por dia:
+- 06/10/2026: 1
+- 07/10/2026: 2
+- 08/10/2026: 0
+...
+
+Avaliações (data de envio | urgência | descrição):
+- 06/10/2026 09:00:00 | HIGH | Aula sem áudio
+- 07/10/2026 12:00:00 | MEDIUM | Aula média
+- 07/10/2026 15:30:00 | LOW | Aula ótima
+```
+
+Uma mensagem do SNS tem no máximo 256 KB: se a lista passar disso (cerca de 230 avaliações com descrição de 1000 caracteres), ela é cortada e o e-mail termina com `... e mais N avaliações`. Total, média e contagens continuam completos. Se o SNS falhar, a execução falha e o agendamento tenta de novo.
 
 ## Configuração
 
 | Propriedade | Variável de ambiente | Padrão |
 |---|---|---|
-| `quarkus.http.port` | `QUARKUS_HTTP_PORT` | `8083` |
-| `report.zone-id` | `REPORT_ZONE_ID` | `America/Sao_Paulo` |
+| `quarkus.http.port` | `QUARKUS_HTTP_PORT` | `8083` (só no build padrão) |
+| `quarkus.funqy.export` | — | `generate-weekly-report` |
+| `report.zone-id` | `REPORT_ZONE_ID` | `America/Sao_Paulo` (fecha os dias do relatório e formata as datas do e-mail) |
+| `feedback.table` | `FEEDBACK_TABLE` | `feedbacks` (só no profile `lambda`) |
+| `feedback.day-index` | `FEEDBACK_DAY_INDEX` | `por-dia` (só no profile `lambda`) |
+| `report.topic.arn` | `REPORT_TOPIC_ARN` | sem padrão; obrigatória no profile `lambda` |
+
+Na Lambda, a região e as credenciais vêm do próprio ambiente (`AWS_REGION` e o papel IAM da função). O papel precisa de `dynamodb:Query` no índice `por-dia`, `sns:Publish` no tópico e `kms:GenerateDataKey`/`kms:Decrypt` na chave `aws/sns` (o tópico é criptografado).
