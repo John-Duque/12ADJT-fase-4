@@ -27,6 +27,32 @@ module "critical_queue" {
 
   name                       = "critical-feedbacks"
   visibility_timeout_seconds = 6 * local.notifier_timeout_seconds
+  policy_json                = data.aws_iam_policy_document.critical_queue.json
+}
+
+# Na política da própria fila: só a ingestion publica e só o notifier consome
+data "aws_iam_policy_document" "critical_queue" {
+  statement {
+    sid       = "IngestionPublica"
+    actions   = ["sqs:SendMessage"]
+    resources = [module.critical_queue.arn]
+
+    principals {
+      type        = "AWS"
+      identifiers = [module.ingestion_function.role_arn]
+    }
+  }
+
+  statement {
+    sid       = "NotifierConsome"
+    actions   = ["sqs:ReceiveMessage", "sqs:DeleteMessage", "sqs:GetQueueAttributes", "sqs:ChangeMessageVisibility"]
+    resources = [module.critical_queue.arn]
+
+    principals {
+      type        = "AWS"
+      identifiers = [module.notifier_function.role_arn]
+    }
+  }
 }
 
 module "critical_topic" {
@@ -83,6 +109,9 @@ module "ingestion_function" {
   timeout     = 15
   public_url  = true
   policy_json = data.aws_iam_policy_document.ingestion.json
+
+  # Limite de requisições simultâneas da URL pública (sem custo); -1 = sem reserva
+  reserved_concurrency = var.ingestion_reserved_concurrency
 
   environment = {
     FEEDBACK_TABLE     = module.feedback_table.name

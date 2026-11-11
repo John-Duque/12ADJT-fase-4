@@ -22,3 +22,9 @@ variable "admin_emails" {
   sensitive   = true
   default     = {}
 }
+
+variable "ingestion_reserved_concurrency" {
+  description = "Execuções simultâneas reservadas para a ingestion (limite de requisições da Function URL); -1 = sem reserva"
+  type        = number
+  default     = -1
+}
