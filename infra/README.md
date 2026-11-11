@@ -8,8 +8,10 @@ Toda a infraestrutura da AWS do projeto, descrita em Terraform ([ADR 0003](../do
 infra/
 ├── modules/      # um módulo por componente
 │   ├── table/          # tabela do DynamoDB com o índice por-dia
-│   ├── queue/          # fila SQS com DLQ
-│   └── notification/   # tópico SNS com assinaturas de e-mail
+│   ├── queue/          # fila SQS com DLQ e política só HTTPS
+│   ├── notification/   # tópico SNS com assinaturas de e-mail
+│   ├── function/       # Lambda Java 21 com SnapStart, papel IAM, logs, alias live e Function URL opcional
+│   └── schedule/       # agenda do EventBridge Scheduler com papel IAM próprio
 └── envs/
     └── dev/      # o único ambiente: chama os módulos
         ├── versions.tf   # versões do Terraform e do provider, state no HCP Terraform
@@ -34,6 +36,22 @@ Todos dentro do sempre gratuito da AWS.
 | DLQ | `critical-feedbacks-dlq` | Recebe a mensagem depois de 3 tentativas (`maxReceiveCount`); retenção de 14 dias; só aceita mensagens da fila principal |
 | Tópico SNS | `feedbacks-criticos` | E-mail de urgência; criptografado com `alias/aws/sns` |
 | Tópico SNS | `relatorio-semanal` | Relatório semanal; criptografado com `alias/aws/sns` |
+| Lambda | `feedback-ingestion` | Java 21, 512 MB, 15 s, SnapStart; **Function URL** pública (HTTPS, sem autenticação) no alias `live`; papel `feedback-ingestion` |
+| Lambda | `critical-notifier` | Java 21, 512 MB, 30 s, SnapStart; acionada pela fila (*event source mapping* com `ReportBatchItemFailures`, lotes de 10, no máximo 2 execuções simultâneas); papel `feedback-critical-notifier` |
+| Lambda | `weekly-report` | Java 21, 512 MB, 60 s, SnapStart; acionada pela agenda; papel `feedback-weekly-report` |
+| Agenda | `feedback-weekly-report` | EventBridge Scheduler, `cron(0 8 ? * MON *)` em `America/Sao_Paulo`, chama o alias `live` do report com até 2 novas tentativas; papel `feedback-scheduler` |
+| Logs | `/aws/lambda/<função>` | Um grupo por função, retenção de 7 dias |
+
+Detalhes das funções:
+
+- **Pacote**: o `function.zip` de cada função é gerado por `mvn package -Plambda` e enviado direto para a Lambda (até 50 MB, sem bucket S3). Cada mudança no zip publica uma versão nova e move o alias `live`; o SnapStart (sem custo para Java) só vale para versões publicadas, por isso URL, fila e agenda chamam o alias.
+- **Variáveis de ambiente**: `FEEDBACK_TABLE`, `CRITICAL_QUEUE_URL` (ingestion), `CRITICAL_TOPIC_ARN` (notifier), `FEEDBACK_DAY_INDEX` e `REPORT_TOPIC_ARN` (report), todas vindas dos outros módulos; `JAVA_TOOL_OPTIONS` com o JIT só no nível 1 (inicialização mais rápida).
+- **Permissões** (privilégio mínimo, detalhes em [`docs/seguranca.md`](../docs/seguranca.md)): cada função só grava no próprio grupo de logs e só acessa o recurso de que precisa; quem publica nos tópicos usa a chave `aws/sns` só pelo SNS (`kms:ViaService`).
+- **Fila**: a política da `critical-feedbacks` recusa qualquer acesso sem HTTPS e libera `SendMessage` só para o papel da ingestion e o consumo só para o papel do notifier; a DLQ também recusa acesso sem HTTPS.
+- **Limite de requisições**: a variável `ingestion_reserved_concurrency` reserva execuções simultâneas para a ingestion (padrão `-1`, sem reserva). A AWS exige que sobrem pelo menos 10 execuções sem reserva na conta, então o valor depende do limite da conta (`aws lambda get-account-settings`).
+- **Custo**: tudo no sempre gratuito (1 milhão de invocações e 400 mil GB-segundo por mês na Lambda). O *event source mapping* faz *long polling* contínuo na fila: algo como 650 mil requisições por mês, dentro do 1 milhão grátis do SQS.
+
+Depois do primeiro `apply`, a URL da ingestão aparece no resumo da execução (`POST <url>avaliacao`) e na saída `ingestion_url`.
 
 Os e-mails dos administradores vêm do secret `ADMIN_EMAILS`, nunca do código. O formato é um objeto com um apelido por administrador: `{"john":"admin@exemplo.com"}`. Cada e-mail é assinado nos dois tópicos, e o administrador precisa clicar em **Confirm subscription** no e-mail que a AWS envia depois do `apply`. A variável é sensível: o plan mostra só os apelidos. Sem o secret, os tópicos são criados sem assinaturas.
 
@@ -49,9 +67,13 @@ Workflow [`.github/workflows/infra.yml`](../.github/workflows/infra.yml):
 
 | Evento | O que roda | Credenciais |
 |---|---|---|
-| PR para `develop` ou `main` que altera `infra/**` | `fmt -check`, `init`, `validate` e `plan` (resumo do plan na página da execução) | `ci-terraform-plan` → papel `github-terraform-plan` (somente leitura) |
-| `push` na `main` que altera `infra/**` | `apply` | `ci-deploy` → papel `github-deploy`, no Environment `production` |
+| PR para `develop` ou `main` que altera `infra/**`, `functions/**`, `shared/**` ou o `pom.xml` raiz | `fmt -check`, `mvn package -Plambda`, `init`, `validate` e `plan` | `ci-terraform-plan` → papel `github-terraform-plan` (somente leitura) |
+| `push` na `main` com as mesmas mudanças | `mvn package -Plambda`, `apply` (publica as funções) e teste rápido (`GET <url>q/health/ready` da ingestão) | `ci-deploy` → papel `github-deploy`, no Environment `production` |
 | Manual (*Run workflow* na `main`) | `apply` ou `destroy` | Igual ao `push` na `main` |
+
+O deploy das funções é o próprio `apply`: o Terraform compara o hash de cada `function.zip` e, se mudou, envia o código, publica a versão e move o alias `live`. Como o zip muda a cada build, todo `apply` publica versões novas das três funções.
+
+O plan completo fica só no log da execução, com o ID da conta mascarado. O resumo da página (público) mostra só a lista de recursos e a contagem (`Plan: X to add...`), sem ARNs.
 
 Secrets usados:
 

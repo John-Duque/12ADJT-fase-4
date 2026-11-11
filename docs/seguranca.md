@@ -2,7 +2,7 @@
 
 Como a conta AWS do projeto é protegida: quem acessa, com que permissão, como o CI faz deploy sem permissão direta e como tudo é auditado.
 
-> **Rascunho (T30).** Esta versão cobre a conta, o acesso e as credenciais do CI. Criptografia, parâmetros e proteção da API entram na versão final (T48).
+> **Rascunho (T30 e T35).** Esta versão cobre a conta, o acesso, as credenciais do CI, os papéis das funções e a proteção dos dados. A versão final é a da T48.
 
 Decisões relacionadas: [ADR 0002](adr/0002-provedor-de-nuvem.md) (AWS e serviços sempre gratuitos) e [ADR 0004](adr/0004-conta-aws-simplificada.md) (conta simplificada, região `us-east-2` e CI sem OIDC).
 
@@ -14,6 +14,8 @@ Decisões relacionadas: [ADR 0002](adr/0002-provedor-de-nuvem.md) (AWS e serviç
 | Privilégio mínimo do CI | Dois usuários técnicos, cada um só pode assumir um papel |
 | Credenciais temporárias | O CI recebe credenciais de 1 h ao assumir o papel |
 | Privilégio mínimo das funções | Um papel IAM por função Lambda, só com o que ela usa |
+| Criptografia | Chaves gerenciadas pela AWS em repouso; só HTTPS em trânsito |
+| Proteção da API | Function URL só HTTPS, validação no código e *reserved concurrency* como limite |
 | Custo | Plano gratuito, sem cobrança; só serviços sempre gratuitos |
 | Auditoria | Histórico de eventos do CloudTrail (90 dias, gratuito) |
 
@@ -191,18 +193,35 @@ Esses usuários, papéis e políticas foram criados à mão no CloudShell, porqu
 
 ## 6. Papéis das funções Lambda
 
-Cada função tem o próprio papel IAM, criado pelo Terraform (prefixo `feedback-`), com `AWSLambdaBasicExecutionRole` para gravar logs e só o mínimo além disso:
+Cada função tem o próprio papel IAM, criado pelo Terraform (prefixo `feedback-`, o único que o papel de deploy consegue criar). Em vez da política gerenciada `AWSLambdaBasicExecutionRole`, que libera qualquer grupo de logs, cada papel só grava no grupo da própria função (`logs:CreateLogStream` e `logs:PutLogEvents` em `/aws/lambda/<função>`). Além disso, só o mínimo:
 
-| Função | Pode | Não pode |
+| Função (papel) | Pode | Não pode |
 |---|---|---|
-| `feedback-ingestion` | `dynamodb:PutItem` na tabela `feedbacks`; `sqs:SendMessage` na fila `critical-feedbacks` | Ler o banco, enviar e-mail |
-| `critical-notifier` | `sqs:ReceiveMessage`, `sqs:DeleteMessage` e `sqs:GetQueueAttributes` na fila; `sns:Publish` no tópico `feedbacks-criticos` | Acessar o banco |
-| `weekly-report` | `dynamodb:Query` na tabela e no índice `por-dia`; `sns:Publish` no tópico `relatorio-semanal` | Gravar no banco, acessar a fila |
+| `feedback-ingestion` (`feedback-ingestion`) | `dynamodb:PutItem` na tabela `feedbacks`; `sqs:SendMessage` na fila `critical-feedbacks` | Ler o banco, consumir a fila, enviar e-mail |
+| `critical-notifier` (`feedback-critical-notifier`) | `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes` e `sqs:ChangeMessageVisibility` na fila; `sns:Publish` no tópico `feedbacks-criticos`; `kms:GenerateDataKey*` e `kms:Decrypt` só pelo SNS | Acessar o banco, publicar na fila, enviar o relatório |
+| `weekly-report` (`feedback-weekly-report`) | `dynamodb:Query` só no índice `por-dia`; `sns:Publish` no tópico `relatorio-semanal`; `kms:GenerateDataKey*` e `kms:Decrypt` só pelo SNS | Gravar no banco, ler a tabela fora do índice, acessar a fila |
+| Agenda `feedback-weekly-report` (`feedback-scheduler`) | `lambda:InvokeFunction` no alias `live` da `weekly-report` | Qualquer outra coisa |
 
-O EventBridge Scheduler também tem um papel `feedback-*`, só com `lambda:InvokeFunction` na `weekly-report`.
+- A permissão de KMS tem a condição `kms:ViaService = sns.us-east-2.amazonaws.com`: a função só usa a chave `aws/sns` por meio do SNS, ao publicar no tópico criptografado.
+- O papel da agenda só pode ser assumido pelo EventBridge Scheduler desta conta (condição `aws:SourceAccount`).
+- Os módulos `function` e `schedule` recusam nomes de papel sem o prefixo `feedback-` (`validation` no Terraform).
 
-## 7. Próximos passos
+## 7. Proteção dos dados e da API
 
-- **T35**: criptografia (chaves gerenciadas pela AWS), parâmetros de configuração e limite de requisições da Function URL (*reserved concurrency*).
-- **T42**: criar as chaves dos usuários do CI, os secrets e o Environment `production` com *Deployment branches* só na `main`.
+| Item | Configuração |
+|---|---|
+| Criptografia em repouso | Tabela com a chave da AWS (padrão do DynamoDB); filas com SSE-SQS; tópicos SNS com a chave gerenciada `aws/sns`. Nenhuma chave KMS própria (US$ 1/mês cada) |
+| Criptografia em trânsito | Function URL só aceita HTTPS. As políticas da fila e da DLQ negam qualquer acesso sem HTTPS (`aws:SecureTransport = false`). O SDK da AWS nas funções usa HTTPS |
+| Quem acessa a fila | Além do IAM de cada papel, a política da própria fila só libera `SendMessage` para o papel da ingestion e o consumo para o papel do notifier |
+| Segredos | Nenhum na aplicação: as funções usam as credenciais temporárias do papel IAM. A configuração (tabela, URL da fila, ARNs dos tópicos) fica em variáveis de ambiente, preenchidas pelo Terraform. Se surgir um segredo, vai para o SSM Parameter Store padrão (`SecureString`, gratuito), não para o Secrets Manager (cobrado) |
+| E-mails dos administradores | Secret `ADMIN_EMAILS` no GitHub, variável sensível no Terraform (o plan mostra só os apelidos) |
+| API pública | Function URL sem autenticação (o enunciado pede um `POST /avaliacao` aberto aos estudantes). A validação de entrada fica no código (Bean Validation e regras do domain) |
+| Limite de requisições | *Reserved concurrency* na ingestion (variável `ingestion_reserved_concurrency`): limita as execuções simultâneas e, com isso, o custo de um abuso. A AWS exige que sobrem pelo menos 10 execuções sem reserva na conta, então o valor depende do limite da conta (`aws lambda get-account-settings`). No notifier, o *event source mapping* limita a 2 execuções simultâneas |
+| Logs | Retenção de 7 dias. Na AWS, os logs registram só id, urgência, datas e totais: a descrição da avaliação (texto do estudante) não vai para os logs, só para o banco e os e-mails |
+| Plan público | O resumo da execução do Terraform (público) mostra só os recursos; o plan completo fica no log, com o ID da conta mascarado |
+
+## 8. Próximos passos
+
+- **T41**: teste ponta a ponta na AWS e revisão das políticas com o IAM Access Analyzer (`aws accessanalyzer validate-policy`, gratuito) no CloudShell.
+- **T43 e T44**: monitoramento (dashboard) e alarmes para o tópico `alertas-administradores` (sem a chave `aws/sns`, que o CloudWatch não consegue usar).
 - **T48**: versão final deste documento.
