@@ -44,7 +44,7 @@ Todos dentro do sempre gratuito da AWS.
 
 Detalhes das funções:
 
-- **Pacote**: o `function.zip` de cada função é gerado por `mvn package -Plambda` e enviado direto para a Lambda (até 50 MB, sem bucket S3). Cada mudança no zip publica uma versão nova e move o alias `live`; o SnapStart (sem custo para Java) só vale para versões publicadas, por isso URL, fila e agenda chamam o alias.
+- **Pacote**: o `function.zip` de cada função é gerado por `mvn package -Plambda` e enviado direto para a Lambda (até 50 MB, sem bucket S3). Cada mudança no zip publica uma versão nova e move o alias `live`; o SnapStart (sem custo para Java) só vale para versões publicadas, por isso URL, fila e agenda chamam o alias. A versão nova só atende depois que o snapshot do SnapStart fica pronto (alguns minutos): o módulo espera com `aws lambda wait published-version-active` (AWS CLI, já instalado no runner do GitHub e no CloudShell) antes de mover o alias, para o deploy não deixar a função fora do ar.
 - **Variáveis de ambiente**: `FEEDBACK_TABLE`, `CRITICAL_QUEUE_URL` (ingestion), `CRITICAL_TOPIC_ARN` (notifier), `FEEDBACK_DAY_INDEX` e `REPORT_TOPIC_ARN` (report), todas vindas dos outros módulos; `JAVA_TOOL_OPTIONS` com o JIT só no nível 1 (inicialização mais rápida).
 - **Permissões** (privilégio mínimo, detalhes em [`docs/seguranca.md`](../docs/seguranca.md)): cada função só grava no próprio grupo de logs e só acessa o recurso de que precisa; quem publica nos tópicos usa a chave `aws/sns` só pelo SNS (`kms:ViaService`).
 - **Fila**: a política da `critical-feedbacks` recusa qualquer acesso sem HTTPS e libera `SendMessage` só para o papel da ingestion e o consumo só para o papel do notifier; a DLQ também recusa acesso sem HTTPS.

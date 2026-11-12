@@ -151,12 +151,12 @@ jobs:
         if: inputs.acao != 'destroy'
         run: terraform apply -no-color -lock-timeout=5m -auto-approve
 
-      # A ingestão responde o health check pela Function URL depois do deploy
+      # A ingestão responde o health check pela Function URL depois do deploy (o primeiro acesso restaura o SnapStart)
       - name: Teste rápido
         if: inputs.acao != 'destroy'
         run: |
           url="$(terraform output -raw ingestion_url)"
-          for tentativa in 1 2 3 4 5; do
+          for tentativa in 1 2 3 4 5 6 7 8 9 10 11 12; do
             if curl -fsS "${url}q/health/ready"; then
               echo "### Deploy publicado" >> "$GITHUB_STEP_SUMMARY"
               echo "Ingestão: \`POST ${url}avaliacao\`" >> "$GITHUB_STEP_SUMMARY"
