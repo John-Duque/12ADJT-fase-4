@@ -69,10 +69,22 @@ resource "aws_lambda_function" "this" {
   depends_on = [aws_iam_role_policy.this, aws_cloudwatch_log_group.this]
 }
 
+data "aws_region" "current" {}
+
+# A versão nova só atende depois que o snapshot do SnapStart fica pronto (alguns minutos).
+# Espera com o AWS CLI antes de mover o alias, para o deploy não deixar a função fora do ar.
+resource "terraform_data" "version_ready" {
+  input = aws_lambda_function.this.version
+
+  provisioner "local-exec" {
+    command = "aws lambda wait published-version-active --function-name ${aws_lambda_function.this.function_name} --qualifier ${aws_lambda_function.this.version} --region ${data.aws_region.current.region}"
+  }
+}
+
 resource "aws_lambda_alias" "live" {
   name             = "live"
   function_name    = aws_lambda_function.this.function_name
-  function_version = aws_lambda_function.this.version
+  function_version = terraform_data.version_ready.output
 }
 
 # Endereço HTTPS público (sem custo, no lugar do API Gateway); só HTTPS, a AWS não aceita HTTP
