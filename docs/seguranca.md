@@ -15,7 +15,7 @@ Decisões relacionadas: [ADR 0002](adr/0002-provedor-de-nuvem.md) (AWS e serviç
 | Credenciais temporárias | O CI recebe credenciais de 1 h ao assumir o papel |
 | Privilégio mínimo das funções | Um papel IAM por função Lambda, só com o que ela usa |
 | Criptografia | Chaves gerenciadas pela AWS em repouso; só HTTPS em trânsito |
-| Proteção da API | Function URL só HTTPS, validação no código e *reserved concurrency* como limite |
+| Proteção da API | Function URL só HTTPS, validação no código e teto de 10 execuções simultâneas (limite da conta) |
 | Custo | Plano gratuito, sem cobrança; só serviços sempre gratuitos |
 | Auditoria | Histórico de eventos do CloudTrail (90 dias, gratuito) |
 
@@ -216,7 +216,7 @@ Cada função tem o próprio papel IAM, criado pelo Terraform (prefixo `feedback
 | Segredos | Nenhum na aplicação: as funções usam as credenciais temporárias do papel IAM. A configuração (tabela, URL da fila, ARNs dos tópicos) fica em variáveis de ambiente, preenchidas pelo Terraform. Se surgir um segredo, vai para o SSM Parameter Store padrão (`SecureString`, gratuito), não para o Secrets Manager (cobrado) |
 | E-mails dos administradores | Secret `ADMIN_EMAILS` no GitHub, variável sensível no Terraform (o plan mostra só os apelidos) |
 | API pública | Function URL sem autenticação (o enunciado pede um `POST /avaliacao` aberto aos estudantes). A validação de entrada fica no código (Bean Validation e regras do domain) |
-| Limite de requisições | *Reserved concurrency* na ingestion (variável `ingestion_reserved_concurrency`): limita as execuções simultâneas e, com isso, o custo de um abuso. A AWS exige que sobrem pelo menos 10 execuções sem reserva na conta, então o valor depende do limite da conta (`aws lambda get-account-settings`). No notifier, o *event source mapping* limita a 2 execuções simultâneas |
+| Limite de requisições | A conta tem limite de **10 execuções simultâneas** de Lambda (conferido em 11/11/2026 com `aws lambda get-account-settings`), e a AWS exige que 10 fiquem sem reserva. Por isso não dá para reservar execuções para a ingestion (*reserved concurrency*): a variável `ingestion_reserved_concurrency` fica em `-1`. O próprio limite da conta funciona como teto: mesmo num abuso, no máximo 10 execuções rodam ao mesmo tempo, o que limita o custo, e o excesso recebe `429 Too Many Requests`. O lado ruim é que um abuso na ingestion pode atrasar o notifier e o report, que dividem o mesmo limite; nesse caso as mensagens críticas esperam na fila e o relatório é tentado de novo pela agenda. O notifier usa no máximo 2 execuções (*event source mapping*). Se a conta passar a ter limite maior (pedido no Service Quotas), basta definir a variável |
 | Logs | Retenção de 7 dias. Na AWS, os logs registram só id, urgência, datas e totais: a descrição da avaliação (texto do estudante) não vai para os logs, só para o banco e os e-mails |
 | Plan público | O resumo da execução do Terraform (público) mostra só os recursos; o plan completo fica no log, com o ID da conta mascarado |
 

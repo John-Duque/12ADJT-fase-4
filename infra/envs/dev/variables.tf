@@ -24,7 +24,7 @@ variable "admin_emails" {
 }
 
 variable "ingestion_reserved_concurrency" {
-  description = "Execuções simultâneas reservadas para a ingestion (limite de requisições da Function URL); -1 = sem reserva"
+  description = "Execuções simultâneas reservadas para a ingestion; -1 = sem reserva (a conta tem limite de 10 e a AWS exige 10 sem reserva)"
   type        = number
   default     = -1
 }
