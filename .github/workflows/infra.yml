@@ -1,15 +1,22 @@
 name: Infra
 
 on:
+  # Infra ou código das funções: o Terraform publica os function.zip (deploy das funções)
   pull_request:
     branches: [main, develop]
     paths:
       - 'infra/**'
+      - 'functions/**'
+      - 'shared/**'
+      - 'pom.xml'
       - '.github/workflows/infra.yml'
   push:
     branches: [main]
     paths:
       - 'infra/**'
+      - 'functions/**'
+      - 'shared/**'
+      - 'pom.xml'
       - '.github/workflows/infra.yml'
   workflow_dispatch:
     inputs:
@@ -57,6 +64,18 @@ jobs:
       - name: Formatação
         run: terraform fmt -check -recursive ../..
 
+      - name: Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # O Terraform lê o function.zip de cada função (hash e upload direto, sem S3)
+      - name: Pacotes das funções
+        working-directory: .
+        run: mvn -B -ntp package -Plambda -DskipTests
+
       # Sem OIDC na conta simplificada (ADR 0004): a chave do ci-terraform-plan só assume o papel de leitura
       - name: Credenciais da AWS (somente leitura)
         uses: aws-actions/configure-aws-credentials@v6
@@ -75,18 +94,19 @@ jobs:
       - name: Validate
         run: terraform validate -no-color
 
+      # O plan completo fica só no log (ID da conta mascarado); o resumo público mostra só os recursos
       - name: Plan
         run: |
           terraform plan -no-color -lock-timeout=5m -out=tfplan
           {
             echo '### Terraform plan'
             echo '```'
-            terraform show -no-color tfplan | tail -n 200
+            terraform show -no-color tfplan | grep -E '^ *# |^Plan:|^No changes' || true
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
   apply:
-    name: Terraform ${{ inputs.acao || 'apply' }}
+    name: Terraform apply
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     runs-on: ubuntu-24.04
     # Secrets do ci-deploy só existem no Environment production, liberado só para a main
@@ -100,6 +120,18 @@ jobs:
         with:
           terraform_version: 1.17.1
           terraform_wrapper: false
+
+      - name: Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Também no destroy: o Terraform avalia o hash dos zips mesmo para remover
+      - name: Pacotes das funções
+        working-directory: .
+        run: mvn -B -ntp package -Plambda -DskipTests
 
       - name: Credenciais da AWS (deploy)
         uses: aws-actions/configure-aws-credentials@v6
@@ -118,6 +150,22 @@ jobs:
       - name: Apply
         if: inputs.acao != 'destroy'
         run: terraform apply -no-color -lock-timeout=5m -auto-approve
+
+      # A ingestão responde o health check pela Function URL depois do deploy
+      - name: Teste rápido
+        if: inputs.acao != 'destroy'
+        run: |
+          url="$(terraform output -raw ingestion_url)"
+          for tentativa in 1 2 3 4 5; do
+            if curl -fsS "${url}q/health/ready"; then
+              echo "### Deploy publicado" >> "$GITHUB_STEP_SUMMARY"
+              echo "Ingestão: \`POST ${url}avaliacao\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Tentativa ${tentativa} falhou, aguardando..."
+            sleep 10
+          done
+          exit 1
 
       - name: Destroy
         if: inputs.acao == 'destroy'

@@ -25,3 +25,9 @@ variable "max_receive_count" {
   type        = number
   default     = 3
 }
+
+variable "policy_json" {
+  description = "Declarações extras da política da fila principal (documento IAM em JSON); vazio = só a regra de HTTPS"
+  type        = string
+  default     = ""
+}
