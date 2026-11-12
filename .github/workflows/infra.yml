@@ -1,0 +1,172 @@
+name: Infra
+
+on:
+  # Infra ou código das funções: o Terraform publica os function.zip (deploy das funções)
+  pull_request:
+    branches: [main, develop]
+    paths:
+      - 'infra/**'
+      - 'functions/**'
+      - 'shared/**'
+      - 'pom.xml'
+      - '.github/workflows/infra.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/**'
+      - 'functions/**'
+      - 'shared/**'
+      - 'pom.xml'
+      - '.github/workflows/infra.yml'
+  workflow_dispatch:
+    inputs:
+      acao:
+        description: 'apply cria ou atualiza a infraestrutura; destroy remove tudo (só depois da nota)'
+        type: choice
+        options: [apply, destroy]
+        default: apply
+
+permissions:
+  contents: read
+
+concurrency:
+  # Um Terraform por vez no mesmo state; PR novo cancela o plan anterior, apply nunca é cancelado
+  group: infra-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  TF_IN_AUTOMATION: 'true'
+  TF_INPUT: 'false'
+  TF_TOKEN_app_terraform_io: ${{ secrets.TF_TOKEN_app_terraform_io }}
+  # E-mails dos administradores (ex.: {"john":"admin@exemplo.com"}); sensíveis, não aparecem no plan
+  TF_VAR_admin_emails: ${{ secrets.ADMIN_EMAILS || '{}' }}
+  AWS_REGION: us-east-2
+
+defaults:
+  run:
+    working-directory: infra/envs/dev
+
+jobs:
+  plan:
+    name: Terraform plan
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+
+      - name: Formatação
+        run: terraform fmt -check -recursive ../..
+
+      - name: Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # O Terraform lê o function.zip de cada função (hash e upload direto, sem S3)
+      - name: Pacotes das funções
+        working-directory: .
+        run: mvn -B -ntp package -Plambda -DskipTests
+
+      # Sem OIDC na conta simplificada (ADR 0004): a chave do ci-terraform-plan só assume o papel de leitura
+      - name: Credenciais da AWS (somente leitura)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_PLAN_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_PLAN_SECRET_ACCESS_KEY }}
+          role-to-assume: github-terraform-plan
+          role-skip-session-tagging: true
+          role-duration-seconds: 3600
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Init
+        run: terraform init
+
+      - name: Validate
+        run: terraform validate -no-color
+
+      # O plan completo fica só no log (ID da conta mascarado); o resumo público mostra só os recursos
+      - name: Plan
+        run: |
+          terraform plan -no-color -lock-timeout=5m -out=tfplan
+          {
+            echo '### Terraform plan'
+            echo '```'
+            terraform show -no-color tfplan | grep -E '^ *# |^Plan:|^No changes' || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  apply:
+    name: Terraform apply
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-24.04
+    # Secrets do ci-deploy só existem no Environment production, liberado só para a main
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_version: 1.17.1
+          terraform_wrapper: false
+
+      - name: Java
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      # Também no destroy: o Terraform avalia o hash dos zips mesmo para remover
+      - name: Pacotes das funções
+        working-directory: .
+        run: mvn -B -ntp package -Plambda -DskipTests
+
+      - name: Credenciais da AWS (deploy)
+        uses: aws-actions/configure-aws-credentials@v6
+        with:
+          aws-access-key-id: ${{ secrets.AWS_DEPLOY_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_DEPLOY_SECRET_ACCESS_KEY }}
+          role-to-assume: github-deploy
+          role-skip-session-tagging: true
+          role-duration-seconds: 3600
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Init
+        run: terraform init
+
+      - name: Apply
+        if: inputs.acao != 'destroy'
+        run: terraform apply -no-color -lock-timeout=5m -auto-approve
+
+      # A ingestão responde o health check pela Function URL depois do deploy
+      - name: Teste rápido
+        if: inputs.acao != 'destroy'
+        run: |
+          url="$(terraform output -raw ingestion_url)"
+          for tentativa in 1 2 3 4 5; do
+            if curl -fsS "${url}q/health/ready"; then
+              echo "### Deploy publicado" >> "$GITHUB_STEP_SUMMARY"
+              echo "Ingestão: \`POST ${url}avaliacao\`" >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            echo "Tentativa ${tentativa} falhou, aguardando..."
+            sleep 10
+          done
+          exit 1
+
+      - name: Destroy
+        if: inputs.acao == 'destroy'
+        run: terraform destroy -no-color -lock-timeout=5m -auto-approve

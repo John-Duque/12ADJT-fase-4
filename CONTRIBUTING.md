@@ -56,4 +56,4 @@ Como o merge em `develop` é squash, os commits da branch viram **um commit por 
 2. Crie a branch a partir de `develop` atualizada.
 3. Siga o **Passo a passo** da issue: cada passo é um commit, com os arquivos e o que criar. Marque o checkbox de cada um e rode `mvn verify` no final.
 4. Abra o PR para `develop` com `Closes #<issue>` na descrição e mova o card para **In Review**.
-5. CI verde + 1 aprovação de outro integrante → squash merge. O card vai para **Done** sozinho.
+5. CI verde + 1 aprovação de outro integrante → squash merge. Depois, feche a issue: o card vai para **Done** sozinho.

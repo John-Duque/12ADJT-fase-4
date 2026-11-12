@@ -1,0 +1,668 @@
+{
+  "info": {
+    "name": "12ADJT-fase-4",
+    "description": "Testes locais das três funções da plataforma de feedback. Suba as funções com `make up` (ou `make dev-*`) e rode a coleção pelo Collection Runner ou com `npx newman run docs/postman/12adjt-fase-4.postman_collection.json`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "ingestionUrl",
+      "value": "http://localhost:8081"
+    },
+    {
+      "key": "notifierUrl",
+      "value": "http://localhost:8082"
+    },
+    {
+      "key": "reportUrl",
+      "value": "http://localhost:8083"
+    }
+  ],
+  "item": [
+    {
+      "name": "feedback-ingestion",
+      "item": [
+        {
+          "name": "Nota alta → LOW",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Urgência LOW', () => pm.expect(body.urgencia).to.eql('LOW'));",
+                  "pm.test('id e dataEnvio presentes', () => {",
+                  "    pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.dataEnvio).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Nota de 7 a 10: urgência LOW.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Aula muito boa\", \"nota\": 9}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nota média → MEDIUM",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Urgência MEDIUM', () => pm.expect(body.urgencia).to.eql('MEDIUM'));",
+                  "pm.test('id e dataEnvio presentes', () => {",
+                  "    pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.dataEnvio).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Nota de 4 a 6: urgência MEDIUM.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Explicação razoável\", \"nota\": 5}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nota crítica → HIGH",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 201', () => pm.response.to.have.status(201));",
+                  "const body = pm.response.json();",
+                  "pm.test('Urgência HIGH', () => pm.expect(body.urgencia).to.eql('HIGH'));",
+                  "pm.test('id e dataEnvio presentes', () => {",
+                  "    pm.expect(body.id).to.be.a('string').and.not.empty;",
+                  "    pm.expect(body.dataEnvio).to.be.a('string').and.not.empty;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Nota de 0 a 3: urgência HIGH; aparece 'Feedback crítico publicado' no log.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Aula sem áudio\", \"nota\": 2}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nota acima de 10",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: A nota deve ser no máximo 10', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('A nota deve ser no máximo 10');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Nota fora de 0 a 10 é rejeitada.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Teste\", \"nota\": 11}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Nota negativa",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: A nota deve ser no mínimo 0', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('A nota deve ser no mínimo 0');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Nota fora de 0 a 10 é rejeitada.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Teste\", \"nota\": -1}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sem descrição",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: A descrição é obrigatória', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('A descrição é obrigatória');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "A descrição é obrigatória.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"nota\": 5}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Descrição em branco",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: A descrição é obrigatória', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('A descrição é obrigatória');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Descrição só com espaços conta como vazia.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"   \", \"nota\": 5}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sem nota",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: A nota é obrigatória', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('A nota é obrigatória');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "A nota é obrigatória.",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"descricao\": \"Sem nota\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Sem corpo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Mensagem: O corpo da requisição é obrigatório', () => {",
+                  "    const messages = pm.response.json().violations.map(v => v.message);",
+                  "    pm.expect(messages).to.include('O corpo da requisição é obrigatório');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{ingestionUrl}}/avaliacao",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "avaliacao"
+              ]
+            },
+            "description": "Requisição sem corpo é rejeitada."
+          }
+        }
+      ]
+    },
+    {
+      "name": "critical-notifier",
+      "item": [
+        {
+          "name": "Evento crítico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('notified = true', () => pm.expect(body.notified).to.eql(true));",
+                  "pm.test('feedbackId do evento', () => pm.expect(body.feedbackId).to.eql('8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifierUrl}}/notify-critical-feedback",
+              "host": [
+                "{{notifierUrl}}"
+              ],
+              "path": [
+                "notify-critical-feedback"
+              ]
+            },
+            "description": "Simula a mensagem da fila: urgência HIGH envia o alerta ('[ALERTA]' no log).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11\", \"description\": \"Aula sem áudio\", \"rating\": 1, \"urgency\": \"HIGH\", \"createdAt\": \"2026-10-13T12:00:00Z\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Evento não crítico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('notified = false', () => pm.expect(body.notified).to.eql(false));",
+                  "pm.test('feedbackId do evento', () => pm.expect(body.feedbackId).to.eql('3c6e0b8a-9c0b-4b1e-8f7a-2d5e6f7a8b9c'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{notifierUrl}}/notify-critical-feedback",
+              "host": [
+                "{{notifierUrl}}"
+              ],
+              "path": [
+                "notify-critical-feedback"
+              ]
+            },
+            "description": "Urgência LOW é ignorada ('Evento ignorado' no log).",
+            "body": {
+              "mode": "raw",
+              "raw": "{\"id\": \"3c6e0b8a-9c0b-4b1e-8f7a-2d5e6f7a8b9c\", \"description\": \"Aula ótima\", \"rating\": 9, \"urgency\": \"LOW\", \"createdAt\": \"2026-10-13T12:00:00Z\"}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "weekly-report",
+      "item": [
+        {
+          "name": "Gerar relatório",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "const body = pm.response.json();",
+                  "pm.test('Período presente', () => {",
+                  "    pm.expect(body.startDate).to.match(/^\\d{4}-\\d{2}-\\d{2}$/);",
+                  "    pm.expect(body.endDate).to.match(/^\\d{4}-\\d{2}-\\d{2}$/);",
+                  "});",
+                  "pm.test('Sem avaliações enquanto não há banco', () => pm.expect(body.totalFeedbacks).to.eql(0));",
+                  "pm.test('7 dias em countByDay', () => pm.expect(Object.keys(body.countByDay)).to.have.lengthOf(7));",
+                  "pm.test('Todas as urgências em countByUrgency', () => pm.expect(body.countByUrgency).to.have.all.keys('HIGH', 'MEDIUM', 'LOW'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{reportUrl}}/generate-weekly-report",
+              "host": [
+                "{{reportUrl}}"
+              ],
+              "path": [
+                "generate-weekly-report"
+              ]
+            },
+            "description": "Relatório dos 7 dias anteriores. Sai zerado enquanto não houver banco."
+          }
+        }
+      ]
+    },
+    {
+      "name": "health",
+      "item": [
+        {
+          "name": "Ready feedback-ingestion",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{ingestionUrl}}/q/health/ready",
+              "host": [
+                "{{ingestionUrl}}"
+              ],
+              "path": [
+                "q",
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Readiness."
+          }
+        },
+        {
+          "name": "Ready critical-notifier",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{notifierUrl}}/q/health/ready",
+              "host": [
+                "{{notifierUrl}}"
+              ],
+              "path": [
+                "q",
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Readiness."
+          }
+        },
+        {
+          "name": "Ready weekly-report",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status 200', () => pm.response.to.have.status(200));",
+                  "pm.test('status UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{reportUrl}}/q/health/ready",
+              "host": [
+                "{{reportUrl}}"
+              ],
+              "path": [
+                "q",
+                "health",
+                "ready"
+              ]
+            },
+            "description": "Readiness."
+          }
+        }
+      ]
+    }
+  ]
+}

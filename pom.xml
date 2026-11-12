@@ -15,6 +15,10 @@
     <!-- Cada módulo é adicionado aqui pela sua task do GitHub Project, nesta ordem:
          shared/feedback-domain, functions/feedback-ingestion, functions/critical-notifier, functions/weekly-report -->
     <modules>
+        <module>shared/feedback-domain</module>
+        <module>functions/feedback-ingestion</module>
+        <module>functions/critical-notifier</module>
+        <module>functions/weekly-report</module>
     </modules>
 
     <properties>
@@ -30,6 +34,8 @@
 
         <!-- Dependências fora do BOM do Quarkus -->
         <assertj.version>3.27.3</assertj.version>
+        <!-- SDK da AWS usado pelos gateways reais (DynamoDB, SQS e SNS) -->
+        <awssdk.version>2.57.12</awssdk.version>
 
         <!-- Plugins -->
         <maven-compiler-plugin.version>3.14.0</maven-compiler-plugin.version>
@@ -47,6 +53,8 @@
         <sonar.organization>john-duque</sonar.organization>
         <sonar.projectKey>John-Duque_12ADJT-fase-4</sonar.projectKey>
         <sonar.projectName>12ADJT-fase-4</sonar.projectName>
+        <!-- O evento repete os campos e getters do Feedback de propósito (contrato da fila separado da entidade) -->
+        <sonar.cpd.exclusions>**/domain/feedback/event/CriticalFeedbackEvent.java</sonar.cpd.exclusions>
     </properties>
 
     <dependencyManagement>
@@ -55,6 +63,13 @@
                 <groupId>${quarkus.platform.group-id}</groupId>
                 <artifactId>${quarkus.platform.artifact-id}</artifactId>
                 <version>${quarkus.platform.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${awssdk.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
