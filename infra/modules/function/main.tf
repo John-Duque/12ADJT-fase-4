@@ -76,6 +76,9 @@ data "aws_region" "current" {}
 resource "terraform_data" "version_ready" {
   input = aws_lambda_function.this.version
 
+  # O provisioner só roda na criação: recria a cada versão nova para esperar de novo
+  triggers_replace = aws_lambda_function.this.version
+
   provisioner "local-exec" {
     command = "aws lambda wait published-version-active --function-name ${aws_lambda_function.this.function_name} --qualifier ${aws_lambda_function.this.version} --region ${data.aws_region.current.region}"
   }
