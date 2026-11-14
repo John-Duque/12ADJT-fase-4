@@ -46,3 +46,13 @@ output "report_schedule" {
   description = "Agenda do relatório semanal"
   value       = module.report_schedule.name
 }
+
+output "dashboard_url" {
+  description = "Dashboard de monitoramento no console do CloudWatch"
+  value       = module.monitoring.dashboard_url
+}
+
+output "log_queries" {
+  description = "Consultas salvas do Logs Insights"
+  value       = module.monitoring.query_names
+}
