@@ -8,6 +8,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Map;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
+import org.jboss.logging.Logger;
 import software.amazon.awssdk.services.dynamodb.DynamoDbClient;
 import software.amazon.awssdk.services.dynamodb.model.AttributeValue;
 import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
@@ -16,6 +17,8 @@ import software.amazon.awssdk.services.dynamodb.model.PutItemRequest;
 @ApplicationScoped
 @IfBuildProperty(name = "feedback.aws.enabled", stringValue = "true")
 public class DynamoDbFeedbackGateway implements FeedbackGateway {
+
+    private static final Logger LOG = Logger.getLogger(DynamoDbFeedbackGateway.class);
 
     /** Data com tamanho fixo, para a ordenação de texto do índice por-dia seguir a ordem do tempo. */
     public static final DateTimeFormatter CREATED_AT_FORMAT =
@@ -37,6 +40,7 @@ public class DynamoDbFeedbackGateway implements FeedbackGateway {
                 .tableName(tableName)
                 .item(toItem(feedback))
                 .build());
+        LOG.infof("Feedback gravado: id=%s urgencia=%s", feedback.getId(), feedback.getUrgency());
     }
 
     static Map<String, AttributeValue> toItem(Feedback feedback) {

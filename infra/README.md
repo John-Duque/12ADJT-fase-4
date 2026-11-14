@@ -11,7 +11,8 @@ infra/
 │   ├── queue/          # fila SQS com DLQ e política só HTTPS
 │   ├── notification/   # tópico SNS com assinaturas de e-mail
 │   ├── function/       # Lambda Java 21 com SnapStart, papel IAM, logs, alias live e Function URL opcional
-│   └── schedule/       # agenda do EventBridge Scheduler com papel IAM próprio
+│   ├── schedule/       # agenda do EventBridge Scheduler com papel IAM próprio
+│   └── monitoring/     # dashboard do CloudWatch e consultas salvas do Logs Insights
 └── envs/
     └── dev/      # o único ambiente: chama os módulos
         ├── versions.tf   # versões do Terraform e do provider, state no HCP Terraform
@@ -41,6 +42,8 @@ Todos dentro do sempre gratuito da AWS.
 | Lambda | `weekly-report` | Java 21, 512 MB, 60 s, SnapStart; acionada pela agenda; papel `feedback-weekly-report` |
 | Agenda | `feedback-weekly-report` | EventBridge Scheduler, `cron(0 8 ? * MON *)` em `America/Sao_Paulo`, chama o alias `live` do report com até 2 novas tentativas; papel `feedback-scheduler` |
 | Logs | `/aws/lambda/<função>` | Um grupo por função, retenção de 7 dias |
+| Dashboard | `feedback-plataforma` | CloudWatch: invocações, erros, *throttles* e duração das 3 funções; fila e DLQ; e-mails do SNS; capacidade do DynamoDB; quadro com os erros recentes dos logs (26 métricas) |
+| Consultas salvas | pasta `feedback` | Logs Insights: `rastrear-feedback-por-id`, `erros` e `duracao-por-funcao`, nos 3 grupos de logs |
 
 Detalhes das funções:
 
@@ -60,6 +63,19 @@ Teste de envio depois da confirmação (CloudShell):
 ```bash
 aws sns publish --topic-arn "$(aws sns list-topics --query "Topics[?ends_with(TopicArn,':feedbacks-criticos')].TopicArn" --output text)" --subject "Teste" --message "Mensagem de teste do feedbacks-criticos"
 ```
+
+## Monitoramento
+
+- **Dashboard**: CloudWatch → **Painéis** → `feedback-plataforma` (saída `dashboard_url`). Os gráficos usam períodos de 5 minutos; a DLQ aparece como número, porque qualquer valor acima de 0 é um evento com falha.
+- **Rastrear um feedback**: CloudWatch → **Logs Insights** → **Consultas salvas** → `feedback/rastrear-feedback-por-id`, troque `COLE-O-ID-DO-FEEDBACK-AQUI` pelo `id` devolvido no `POST /avaliacao` e execute. Aparecem as linhas das funções por onde ele passou:
+
+  | Função | Log |
+  |---|---|
+  | `feedback-ingestion` | `Feedback gravado: id=... urgencia=...` e, se crítico, `Feedback crítico publicado na fila: id=...` |
+  | `critical-notifier` | `Feedback crítico notificado: id=...` ou `Falha ao notificar feedback crítico: id=...` |
+
+- **Erros** (`feedback/erros`) e **duração por função** (`feedback/duracao-por-funcao`, das linhas `REPORT` da Lambda) completam as consultas. Todas mostram só o nome da função, sem o ID da conta.
+- **Custo**: até 3 dashboards com 50 métricas cada são sempre gratuitos; consultas salvas não têm custo e o que o Logs Insights lê entra nos 5 GB/mês gratuitos do CloudWatch Logs; o volume de logs das funções é pequeno.
 
 ## Pipeline
 

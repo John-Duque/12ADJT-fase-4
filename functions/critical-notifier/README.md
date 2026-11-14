@@ -29,7 +29,7 @@ Contrato interno da fila, com os campos em inglês:
 |---|---|---|
 | Urgência `HIGH` | `true` | envia o alerta aos administradores |
 | Urgência `MEDIUM` ou `LOW` | `false` | ignora e loga um aviso |
-| Inválido (descrição em branco, urgência que não bate com a nota) | — | responde `500`; na AWS a mensagem volta para a fila e, depois de 3 tentativas, vai para a DLQ |
+| Inválido (descrição em branco, urgência que não bate com a nota) | — | loga `Falha ao notificar feedback crítico: id=...` e responde `500`; na AWS a mensagem volta para a fila e, depois de 3 tentativas, vai para a DLQ |
 
 O alerta tem exatamente os dados exigidos no e-mail de urgência: **descrição, urgência e data de envio**.
 
@@ -55,6 +55,7 @@ Esperado: `"notified":true`, `"notified":false` e `{"status":"UP",...}`. No log:
 
 ```
 [ALERTA] urgencia=HIGH dataEnvio=2026-10-13T12:00:00Z descricao=Aula sem áudio
+Feedback crítico notificado: id=8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11
 Evento ignorado: feedback 3c6e0b8a-... não é crítico (urgencia=LOW)
 ```
 

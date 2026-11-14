@@ -212,3 +212,22 @@ module "report_schedule" {
   timezone            = "America/Sao_Paulo"
   target_arn          = module.report_function.alias_arn
 }
+
+# Dashboard e consultas salvas do Logs Insights (alarmes na T44)
+module "monitoring" {
+  source = "../../modules/monitoring"
+
+  dashboard_name = "feedback-plataforma"
+  query_folder   = "feedback"
+  function_names = [module.ingestion_function.name, module.notifier_function.name, module.report_function.name]
+  log_group_names = [
+    module.ingestion_function.log_group_name,
+    module.notifier_function.log_group_name,
+    module.report_function.log_group_name,
+  ]
+  queue_name     = module.critical_queue.name
+  dlq_name       = module.critical_queue.dlq_name
+  table_name     = module.feedback_table.name
+  day_index_name = module.feedback_table.day_index_name
+  topic_names    = [module.critical_topic.name, module.report_topic.name]
+}
