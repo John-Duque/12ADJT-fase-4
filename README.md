@@ -450,7 +450,7 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [docs/adr](docs/adr) | Decisões de arquitetura | 🔄 |
 | [docs/postman](docs/postman) | Coleção do Postman com os testes locais das funções | ✅ |
 | [docs/arquitetura.md](docs/arquitetura.md) | Modelo de cloud, componentes, fluxos e camadas | ✅ |
-| `docs/funcoes.md` | Documentação de cada função | ⏳ |
+| [docs/funcoes.md](docs/funcoes.md) | Visão geral das funções, contratos entre elas e regra de urgência | ✅ |
 | `docs/deploy.md` | Instruções de deploy | ⏳ |
 | `docs/monitoramento.md` | Configuração do monitoramento | ⏳ |
 | `docs/seguranca.md` | Segurança e governança de acesso | ⏳ |
