@@ -213,7 +213,16 @@ module "report_schedule" {
   target_arn          = module.report_function.alias_arn
 }
 
-# Dashboard e consultas salvas do Logs Insights (alarmes na T44)
+# Tópico dos alarmes: sem a chave aws/sns, que o CloudWatch não consegue usar (o conteúdo é só o estado do alarme)
+module "alerts_topic" {
+  source = "../../modules/notification"
+
+  name      = "alertas-administradores"
+  emails    = var.admin_emails
+  encrypted = false
+}
+
+# Dashboard, consultas salvas do Logs Insights e 5 alarmes que avisam os administradores
 module "monitoring" {
   source = "../../modules/monitoring"
 
@@ -230,4 +239,7 @@ module "monitoring" {
   table_name     = module.feedback_table.name
   day_index_name = module.feedback_table.day_index_name
   topic_names    = [module.critical_topic.name, module.report_topic.name]
+
+  alarm_topic_arn        = module.alerts_topic.arn
+  throttle_function_name = module.ingestion_function.name
 }

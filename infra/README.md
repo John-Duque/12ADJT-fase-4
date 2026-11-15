@@ -37,13 +37,15 @@ Todos dentro do sempre gratuito da AWS.
 | DLQ | `critical-feedbacks-dlq` | Recebe a mensagem depois de 3 tentativas (`maxReceiveCount`); retenção de 14 dias; só aceita mensagens da fila principal |
 | Tópico SNS | `feedbacks-criticos` | E-mail de urgência; criptografado com `alias/aws/sns` |
 | Tópico SNS | `relatorio-semanal` | Relatório semanal; criptografado com `alias/aws/sns` |
+| Tópico SNS | `alertas-administradores` | Alarmes do CloudWatch; **sem** criptografia, porque o CloudWatch não consegue publicar com a chave `aws/sns` (a mensagem só traz o nome e o estado do alarme) |
 | Lambda | `feedback-ingestion` | Java 21, 512 MB, 15 s, SnapStart; **Function URL** pública (HTTPS, sem autenticação) no alias `live`; papel `feedback-ingestion` |
 | Lambda | `critical-notifier` | Java 21, 512 MB, 30 s, SnapStart; acionada pela fila (*event source mapping* com `ReportBatchItemFailures`, lotes de 10, no máximo 2 execuções simultâneas); papel `feedback-critical-notifier` |
 | Lambda | `weekly-report` | Java 21, 512 MB, 60 s, SnapStart; acionada pela agenda; papel `feedback-weekly-report` |
 | Agenda | `feedback-weekly-report` | EventBridge Scheduler, `cron(0 8 ? * MON *)` em `America/Sao_Paulo`, chama o alias `live` do report com até 2 novas tentativas; papel `feedback-scheduler` |
 | Logs | `/aws/lambda/<função>` | Um grupo por função, retenção de 7 dias |
-| Dashboard | `feedback-plataforma` | CloudWatch: invocações, erros, *throttles* e duração das 3 funções; fila e DLQ; e-mails do SNS; capacidade do DynamoDB; quadro com os erros recentes dos logs (26 métricas) |
+| Dashboard | `feedback-plataforma` | CloudWatch: invocações, erros, *throttles* e duração das 3 funções; fila e DLQ; e-mails do SNS; capacidade do DynamoDB; estado dos alarmes; quadro com os erros recentes dos logs (26 métricas) |
 | Consultas salvas | pasta `feedback` | Logs Insights: `rastrear-feedback-por-id`, `erros` e `duracao-por-funcao`, nos 3 grupos de logs |
+| Alarmes | 5 alarmes do CloudWatch | Erros em cada função, mensagens na DLQ e *throttles* na ingestion; avisam pelo `alertas-administradores` (detalhes em [Monitoramento](#monitoramento)) |
 
 Detalhes das funções:
 
@@ -56,7 +58,7 @@ Detalhes das funções:
 
 Depois do primeiro `apply`, a URL da ingestão aparece no resumo da execução (`POST <url>avaliacao`) e na saída `ingestion_url`.
 
-Os e-mails dos administradores vêm do secret `ADMIN_EMAILS`, nunca do código. O formato é um objeto com um apelido por administrador: `{"john":"admin@exemplo.com"}`. Cada e-mail é assinado nos dois tópicos, e o administrador precisa clicar em **Confirm subscription** no e-mail que a AWS envia depois do `apply`. A variável é sensível: o plan mostra só os apelidos. Sem o secret, os tópicos são criados sem assinaturas.
+Os e-mails dos administradores vêm do secret `ADMIN_EMAILS`, nunca do código. O formato é um objeto com um apelido por administrador: `{"john":"admin@exemplo.com"}`. Cada e-mail é assinado nos três tópicos, e o administrador precisa clicar em **Confirm subscription** no e-mail que a AWS envia depois do `apply`. A variável é sensível: o plan mostra só os apelidos. Sem o secret, os tópicos são criados sem assinaturas.
 
 Teste de envio depois da confirmação (CloudShell):
 
@@ -75,7 +77,22 @@ aws sns publish --topic-arn "$(aws sns list-topics --query "Topics[?ends_with(To
   | `critical-notifier` | `Feedback crítico notificado: id=...` ou `Falha ao notificar feedback crítico: id=...` |
 
 - **Erros** (`feedback/erros`) e **duração por função** (`feedback/duracao-por-funcao`, das linhas `REPORT` da Lambda) completam as consultas. Todas mostram só o nome da função, sem o ID da conta.
-- **Custo**: até 3 dashboards com 50 métricas cada são sempre gratuitos; consultas salvas não têm custo e o que o Logs Insights lê entra nos 5 GB/mês gratuitos do CloudWatch Logs; o volume de logs das funções é pequeno.
+- **Alarmes**: avaliados a cada 5 minutos; mandam e-mail pelo tópico `alertas-administradores` quando entram em alarme e quando voltam ao normal.
+
+  | Alarme | Dispara quando | O que significa |
+  |---|---|---|
+  | `feedback-ingestion-erros`, `critical-notifier-erros`, `weekly-report-erros` | `Errors` > 0 em 5 min | Exceção não tratada ou timeout na função; ver `feedback/erros` |
+  | `critical-feedbacks-dlq-mensagens` | Mensagens visíveis na DLQ > 0 | Um feedback crítico falhou 3 vezes e o e-mail de urgência não saiu. Esse caso não aparece no alarme de erros do notifier, porque ele devolve só a mensagem com falha e a execução termina sem erro |
+  | `feedback-ingestion-throttles` | `Throttles` > 0 em 5 min | A URL recusou requisições (`429`) por falta de execuções simultâneas (limite de 10 da conta) |
+
+  Teste no CloudShell (o alarme volta para `OK` sozinho na próxima avaliação, e os dois e-mails chegam):
+
+  ```bash
+  aws cloudwatch set-alarm-state --alarm-name feedback-ingestion-erros --state-value ALARM --state-reason "Teste do alarme"
+  ```
+
+  Enquanto houver mensagens na DLQ, o alarme dela continua em `ALARM` (o e-mail sai só na mudança de estado). Depois de analisar, devolva as mensagens à fila (**Iniciar redirecionamento da DLQ**) ou limpe a DLQ (**Limpar**).
+- **Custo**: até 3 dashboards com 50 métricas cada e 10 alarmes são sempre gratuitos; consultas salvas não têm custo e o que o Logs Insights lê entra nos 5 GB/mês gratuitos do CloudWatch Logs; o volume de logs das funções é pequeno.
 
 ## Pipeline
 
