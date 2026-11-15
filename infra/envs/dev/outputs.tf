@@ -56,3 +56,13 @@ output "log_queries" {
   description = "Consultas salvas do Logs Insights"
   value       = module.monitoring.query_names
 }
+
+output "alerts_topic_arn" {
+  description = "Tópico dos alarmes"
+  value       = module.alerts_topic.arn
+}
+
+output "alarm_names" {
+  description = "Alarmes que avisam os administradores"
+  value       = module.monitoring.alarm_names
+}

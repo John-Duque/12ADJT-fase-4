@@ -42,3 +42,13 @@ variable "topic_names" {
   description = "Tópicos SNS de e-mail"
   type        = list(string)
 }
+
+variable "alarm_topic_arn" {
+  description = "Tópico SNS que recebe os alarmes (sem a chave aws/sns: o CloudWatch não publica com ela)"
+  type        = string
+}
+
+variable "throttle_function_name" {
+  description = "Função com alarme de throttles (a de URL pública)"
+  type        = string
+}
