@@ -104,6 +104,37 @@ Urgência: HIGH
 Data de envio: 13/10/2026 09:00:00 (America/Sao_Paulo)
 ```
 
+## Na AWS
+
+| Recurso | Configuração |
+|---|---|
+| Lambda `critical-notifier` | Java 21, 512 MB, timeout de 30 s, SnapStart; versão publicada atrás do alias `live` |
+| Gatilho | *Event source mapping* da fila **SQS** `critical-feedbacks` para o alias `live`: lotes de até 10 mensagens, `ReportBatchItemFailures` e no máximo 2 execuções ao mesmo tempo |
+| Fila | Visibilidade de 180 s (6× o timeout); depois de 3 tentativas a mensagem vai para a DLQ `critical-feedbacks-dlq` (retenção de 14 dias) |
+| E-mail | Tópico **SNS** `feedbacks-criticos`, criptografado com `alias/aws/sns`, com uma assinatura de e-mail por administrador |
+| Papel IAM | `feedback-critical-notifier` |
+| Logs | `/aws/lambda/critical-notifier`, retenção de 7 dias |
+| Alarmes | `critical-notifier-erros` (erro na execução) e `critical-feedbacks-dlq-mensagens` (mensagem na DLQ: um alerta não saiu depois de 3 tentativas) |
+
+Permissões do papel (privilégio mínimo):
+
+| Ação | Recurso |
+|---|---|
+| `sqs:ReceiveMessage`, `sqs:DeleteMessage`, `sqs:GetQueueAttributes`, `sqs:ChangeMessageVisibility` | Fila `critical-feedbacks`; a política da própria fila também só libera o consumo para este papel |
+| `sns:Publish` | Só o tópico `feedbacks-criticos` |
+| `kms:GenerateDataKey*`, `kms:Decrypt` | Só quando a chamada vem do SNS (`kms:ViaService`) |
+| `logs:CreateLogStream`, `logs:PutLogEvents` | Só o próprio grupo de logs |
+
+Teste na nuvem: envie uma avaliação com nota de 0 a 3 para o `feedback-ingestion`, ou publique o evento direto na fila (CloudShell, em uma linha só):
+
+```bash
+aws sqs send-message --queue-url "$(aws sqs get-queue-url --queue-name critical-feedbacks --query QueueUrl --output text)" --message-body '{"id":"8f14e45f-ceea-467a-9b8e-6c2a9b8f1a11","description":"Aula sem áudio","rating":1,"urgency":"HIGH","createdAt":"2026-10-13T12:00:00Z"}'
+```
+
+Esperado: o e-mail `[Urgência HIGH] Nova avaliação crítica` em poucos segundos e `Feedback crítico notificado: id=...` no log. Com a descrição em branco (`"description":"   "`), o log mostra `Falha ao notificar feedback crítico`, a mensagem vai para a DLQ em cerca de 10 minutos e o alarme `critical-feedbacks-dlq-mensagens` manda um e-mail.
+
+Evidências: seções 1 e 5 de [`docs/evidencias/teste-ponta-a-ponta.md`](../../docs/evidencias/teste-ponta-a-ponta.md).
+
 ## Configuração
 
 | Propriedade | Variável de ambiente | Padrão |

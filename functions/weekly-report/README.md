@@ -130,6 +130,38 @@ Avaliações (data de envio | urgência | descrição):
 
 Uma mensagem do SNS tem no máximo 256 KB: se a lista passar disso (cerca de 230 avaliações com descrição de 1000 caracteres), ela é cortada e o e-mail termina com `... e mais N avaliações`. Total, média e contagens continuam completos. Se o SNS falhar, a execução falha e o agendamento tenta de novo.
 
+## Na AWS
+
+| Recurso | Configuração |
+|---|---|
+| Lambda `weekly-report` | Java 21, 512 MB, timeout de 60 s, SnapStart; versão publicada atrás do alias `live` |
+| Gatilho | **EventBridge Scheduler** `feedback-weekly-report`: `cron(0 8 ? * MON *)` em `America/Sao_Paulo`, chama o alias `live` com entrada `{}` e tenta de novo até 2 vezes (por até 1 hora) se falhar |
+| Leitura | Índice `por-dia` da tabela DynamoDB `feedbacks` |
+| E-mail | Tópico **SNS** `relatorio-semanal`, criptografado com `alias/aws/sns`, com uma assinatura de e-mail por administrador |
+| Papéis IAM | `feedback-weekly-report` (função) e `feedback-scheduler` (agenda) |
+| Logs | `/aws/lambda/weekly-report`, retenção de 7 dias |
+| Alarme | `weekly-report-erros` (erro na execução, inclusive falha no envio do e-mail) |
+
+Permissões dos papéis (privilégio mínimo):
+
+| Papel | Ação | Recurso |
+|---|---|---|
+| `feedback-weekly-report` | `dynamodb:Query` | Só o índice `por-dia` (sem `Scan` e sem acesso à tabela) |
+| `feedback-weekly-report` | `sns:Publish` | Só o tópico `relatorio-semanal` |
+| `feedback-weekly-report` | `kms:GenerateDataKey*`, `kms:Decrypt` | Só quando a chamada vem do SNS (`kms:ViaService`) |
+| `feedback-weekly-report` | `logs:CreateLogStream`, `logs:PutLogEvents` | Só o próprio grupo de logs |
+| `feedback-scheduler` | `lambda:InvokeFunction` | Só o alias `live` do `weekly-report`; o papel só pode ser assumido por agendas desta conta |
+
+Teste na nuvem, sem esperar a segunda-feira (CloudShell, em uma linha só):
+
+```bash
+aws lambda invoke --function-name weekly-report --qualifier live --cli-binary-format raw-in-base64-out --payload '{}' /tmp/relatorio.json && cat /tmp/relatorio.json
+```
+
+Também dá para usar a aba **Testar** do alias `live` no console da Lambda, com o evento `{}`. Esperado: `StatusCode 200`, o JSON do relatório, o e-mail `Relatório semanal de avaliações: ...` e, no log, `Feedbacks lidos do banco: N (...)` e `Relatório semanal enviado: periodo=... total=... media=...`.
+
+Evidências: seções 4 e 6 de [`docs/evidencias/teste-ponta-a-ponta.md`](../../docs/evidencias/teste-ponta-a-ponta.md).
+
 ## Configuração
 
 | Propriedade | Variável de ambiente | Padrão |
