@@ -41,12 +41,11 @@ locals {
     metric => [for name in var.function_names : ["AWS/Lambda", metric, "FunctionName", name, { label = name }]]
   }
 
-  sns_metrics = flatten([
-    for topic in var.topic_names : [
-      ["AWS/SNS", "NumberOfNotificationsDelivered", "TopicName", topic, { label = "${topic}: entregues" }],
-      ["AWS/SNS", "NumberOfNotificationsFailed", "TopicName", topic, { label = "${topic}: falhas" }],
-    ]
-  ])
+  # concat junta as listas sem desmontar cada métrica (flatten desmontaria e o PutDashboard recusa)
+  sns_metrics = concat(
+    [for topic in var.topic_names : ["AWS/SNS", "NumberOfNotificationsDelivered", "TopicName", topic, { label = "${topic}: entregues" }]],
+    [for topic in var.topic_names : ["AWS/SNS", "NumberOfNotificationsFailed", "TopicName", topic, { label = "${topic}: falhas" }]],
+  )
 
   log_sources = join(" | ", [for name in var.log_group_names : "SOURCE '${name}'"])
 
