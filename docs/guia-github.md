@@ -168,7 +168,7 @@ Engrenagem ao lado de **About** → *Topics*: `java`, `quarkus`, `serverless`, `
 | Bypass list | vazia |
 | Target branches | *Include by pattern* → `main` |
 | Restrict deletions | ✅ |
-| Require a pull request before merging | ✅ — **1** aprovação, ✅ *Dismiss stale approvals*, ✅ *Require conversation resolution*, *Allowed merge methods:* **Merge** |
+| Require a pull request before merging | ✅ — **0** aprovações (o grupo tem um integrante; com mais pessoas, use **1**), ✅ *Dismiss stale approvals*, ✅ *Require conversation resolution*, *Allowed merge methods:* **Merge** |
 | Require status checks to pass | ✅ — `Build, testes e Sonar` |
 | Block force pushes | ✅ |
 
