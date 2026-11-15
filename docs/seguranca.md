@@ -2,8 +2,6 @@
 
 Como a conta AWS do projeto é protegida: quem acessa, com que permissão, como o CI faz deploy sem permissão direta e como tudo é auditado.
 
-> **Rascunho (T30 e T35).** Esta versão cobre a conta, o acesso, as credenciais do CI, os papéis das funções e a proteção dos dados. A versão final é a da T48.
-
 Decisões relacionadas: [ADR 0002](adr/0002-provedor-de-nuvem.md) (AWS e serviços sempre gratuitos) e [ADR 0004](adr/0004-conta-aws-simplificada.md) (conta simplificada, região `us-east-2` e CI sem OIDC).
 
 ## Resumo
@@ -16,8 +14,11 @@ Decisões relacionadas: [ADR 0002](adr/0002-provedor-de-nuvem.md) (AWS e serviç
 | Privilégio mínimo das funções | Um papel IAM por função Lambda, só com o que ela usa |
 | Criptografia | Chaves gerenciadas pela AWS em repouso; só HTTPS em trânsito |
 | Proteção da API | Function URL só HTTPS, validação no código e teto de 10 execuções simultâneas (limite da conta) |
+| Governança do deploy | Mudança só por PR com checks verdes (rulesets na `develop` e na `main`); deploy só a partir da `main` (Environment `production`) |
+| Segredos | Nenhum segredo no código: chaves do CI só nos secrets do GitHub; funções com credenciais temporárias do papel |
 | Custo | Plano gratuito, sem cobrança; só serviços sempre gratuitos |
 | Auditoria | Histórico de eventos do CloudTrail (90 dias, gratuito) |
+| Alertas | Alarmes do CloudWatch avisam os administradores por e-mail ([monitoramento](monitoramento.md)) |
 
 ## 1. Conta e plano
 
@@ -118,9 +119,12 @@ Como existe chave de longa duração, ela é limitada assim:
 
 - **A chave sozinha não faz nada**: a única permissão do usuário é assumir o próprio papel.
 - **PR não faz deploy**: a chave usada nos PRs só assume o papel de leitura.
-- **Chaves criadas só quando o pipeline existir** (T42), direto nos secrets do GitHub, nunca no código. Hoje os dois usuários estão **sem nenhuma chave**.
-- **Rotação**: a cada 90 dias, ou na hora se houver suspeita. Criar a chave nova, atualizar o secret, rodar o workflow e apagar a antiga.
+- **Uma chave por usuário, só nos secrets do GitHub**: criadas em 10/11/2026 no CloudShell, quando o pipeline ficou pronto, e copiadas direto para os secrets (a do `ci-deploy` só no Environment `production`). Nunca foram para o código, para o chat ou para arquivo local.
+- **Rotação**: a cada 90 dias (a próxima até 08/02/2027), ou na hora se houver suspeita. Criar a chave nova, atualizar o secret, rodar o workflow e apagar a antiga.
 - **Rastreio**: todo `AssumeRole` fica no CloudTrail, com o usuário que assumiu.
+- **Fim do projeto**: depois da nota, as chaves, os usuários e os papéis do CI são apagados ([deploy](deploy.md#6-destruir-os-recursos)).
+
+O print abaixo é de antes da criação das chaves (T30), quando os usuários existiam sem nenhuma chave:
 
 ![ci-deploy sem chave de acesso](img/seguranca/18-ci-deploy-sem-chave.png)
 
@@ -210,7 +214,7 @@ Cada função tem o próprio papel IAM, criado pelo Terraform (prefixo `feedback
 
 | Item | Configuração |
 |---|---|
-| Criptografia em repouso | Tabela com a chave da AWS (padrão do DynamoDB); filas com SSE-SQS; tópicos SNS com a chave gerenciada `aws/sns`. Nenhuma chave KMS própria (US$ 1/mês cada) |
+| Criptografia em repouso | Tabela com a chave da AWS (padrão do DynamoDB); filas com SSE-SQS; tópicos de e-mail (`feedbacks-criticos` e `relatorio-semanal`) com a chave gerenciada `aws/sns`. Nenhuma chave KMS própria (US$ 1/mês cada). Exceção: o tópico `alertas-administradores` fica sem criptografia, porque o CloudWatch não publica num tópico com a chave `aws/sns`; ele só leva nome, estado e métrica dos alarmes, nenhum dado de avaliação |
 | Criptografia em trânsito | Function URL só aceita HTTPS. As políticas da fila e da DLQ negam qualquer acesso sem HTTPS (`aws:SecureTransport = false`). O SDK da AWS nas funções usa HTTPS |
 | Quem acessa a fila | Além do IAM de cada papel, a política da própria fila só libera `SendMessage` para o papel da ingestion e o consumo para o papel do notifier |
 | Segredos | Nenhum na aplicação: as funções usam as credenciais temporárias do papel IAM. A configuração (tabela, URL da fila, ARNs dos tópicos) fica em variáveis de ambiente, preenchidas pelo Terraform. Se surgir um segredo, vai para o SSM Parameter Store padrão (`SecureString`, gratuito), não para o Secrets Manager (cobrado) |
@@ -220,8 +224,25 @@ Cada função tem o próprio papel IAM, criado pelo Terraform (prefixo `feedback
 | Logs | Retenção de 7 dias. Na AWS, os logs registram só id, urgência, datas e totais: a descrição da avaliação (texto do estudante) não vai para os logs, só para o banco e os e-mails |
 | Plan público | O resumo da execução do Terraform (público) mostra só os recursos; o plan completo fica no log, com o ID da conta mascarado |
 
-## 8. Próximos passos
+## 8. Revisão de acesso
 
-- **T41**: teste ponta a ponta na AWS e revisão das políticas com o IAM Access Analyzer (`aws accessanalyzer validate-policy`, gratuito) no CloudShell.
-- **T43 e T44**: monitoramento (dashboard) e alarmes para o tópico `alertas-administradores` (sem a chave `aws/sns`, que o CloudWatch não consegue usar).
-- **T48**: versão final deste documento.
+Feita no teste ponta a ponta na AWS ([evidências](evidencias/teste-ponta-a-ponta.md#7-revisão-de-acesso)):
+
+- Só existem os papéis `feedback-*` (funções e agenda), os dois `github-*` do CI e os papéis gerenciados pela AWS, que não são alterados.
+- Cada função conseguiu fazer o que precisa (gravar, publicar na fila, enviar e-mail, consultar o índice) só com as permissões da seção 6, que não liberam nada além disso.
+- O único recurso público é a Function URL da ingestão, que é o `POST /avaliacao` exigido no enunciado.
+
+![Papéis IAM da conta](img/evidencias/11-papeis-iam.png)
+
+Duas ferramentas de revisão não funcionam nesta conta, pela mesma política da organização (SCP) que bloqueia o OIDC:
+
+| Ferramenta | O que acontece | Como foi compensado |
+|---|---|---|
+| IAM Access Analyzer | Criar ou listar analisadores é negado (*explicit deny in a service control policy*) | Revisão manual do acesso externo: só a Function URL é pública |
+| Simulador de políticas (`aws iam simulate-principal-policy`) | Responde `explicitDeny` para tudo, até para ações que as funções executam de verdade | As permissões foram conferidas nos testes reais das funções |
+
+![Access Analyzer bloqueado pela SCP](img/evidencias/12-access-analyzer-bloqueado.png)
+
+## 9. Fim do projeto
+
+O projeto fica no ar, sem custo, até a nota. Depois, o workflow de infraestrutura remove tudo o que o Terraform criou (inclusive a tabela com os dados) e os acessos do CI são apagados no CloudShell. O passo a passo está em [deploy](deploy.md#6-destruir-os-recursos).

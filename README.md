@@ -452,8 +452,8 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [docs/arquitetura.md](docs/arquitetura.md) | Modelo de cloud, componentes, fluxos e camadas | ✅ |
 | [docs/funcoes.md](docs/funcoes.md) | Visão geral das funções, contratos entre elas e regra de urgência | ✅ |
 | [docs/deploy.md](docs/deploy.md) | Pré-requisitos, provisionamento, publicação, validação e remoção | ✅ |
-| `docs/monitoramento.md` | Configuração do monitoramento | ⏳ |
-| `docs/seguranca.md` | Segurança e governança de acesso | ⏳ |
+| [docs/monitoramento.md](docs/monitoramento.md) | Logs, consultas, dashboard e alarmes do CloudWatch | ✅ |
+| [docs/seguranca.md](docs/seguranca.md) | Segurança dos dados e governança de acesso | ✅ |
 | Vídeo de demonstração | Aplicação funcionando na nuvem | ⏳ |
 
 ---
