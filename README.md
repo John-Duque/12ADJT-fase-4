@@ -449,7 +449,7 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [docs/guia-github.md](docs/guia-github.md) | GitHub, rulesets, Sonar, Project e rotina do grupo | ✅ |
 | [docs/adr](docs/adr) | Decisões de arquitetura | 🔄 |
 | [docs/postman](docs/postman) | Coleção do Postman com os testes locais das funções | ✅ |
-| `docs/arquitetura.md` | Modelo de cloud e componentes | ⏳ |
+| [docs/arquitetura.md](docs/arquitetura.md) | Modelo de cloud, componentes, fluxos e camadas | ✅ |
 | `docs/funcoes.md` | Documentação de cada função | ⏳ |
 | `docs/deploy.md` | Instruções de deploy | ⏳ |
 | `docs/monitoramento.md` | Configuração do monitoramento | ⏳ |
