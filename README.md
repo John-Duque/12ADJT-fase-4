@@ -281,7 +281,7 @@ O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no G
 | 7. Infraestrutura cloud | Conta, IaC, banco, fila, e-mail e segurança | ✅ concluída |
 | 8. Integração com a nuvem | Extensões do provedor e gateways reais | ✅ concluída |
 | 9. Deploy e observabilidade | Deploy automatizado, monitoramento e alarmes | ✅ concluída |
-| 10. Documentação e entrega | Documentos, vídeo e checklist final | 🔄 documentação concluída; vídeo e checklist final em andamento |
+| 10. Documentação e entrega | Documentos, vídeo e checklist final | ✅ concluída |
 
 ---
 
