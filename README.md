@@ -1,12 +1,12 @@
 # 12ADJT-fase-4 — Plataforma de Feedback Serverless
 
-[![CI](../../actions/workflows/ci.yml/badge.svg)](../../actions/workflows/ci.yml) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=John-Duque_12ADJT-fase-4&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=John-Duque_12ADJT-fase-4)
+[![CI](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/ci.yml) [![Infra](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/infra.yml/badge.svg?branch=main)](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/infra.yml) [![Docker](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/docker.yml/badge.svg?branch=main)](https://github.com/John-Duque/12ADJT-fase-4/actions/workflows/docker.yml) [![Quality gate status](https://sonarcloud.io/api/project_badges/measure?project=John-Duque_12ADJT-fase-4&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=John-Duque_12ADJT-fase-4) [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=John-Duque_12ADJT-fase-4&metric=coverage)](https://sonarcloud.io/summary/new_code?id=John-Duque_12ADJT-fase-4)
 
 Plataforma em que **estudantes avaliam as aulas** de um curso on-line e **administradores acompanham a satisfação**: avaliações críticas geram um alerta imediato por e-mail e, toda semana, um relatório consolidado chega aos administradores.
 
 Projeto do **Tech Challenge – Fase 4 (POS TECH · Arquitetura e Desenvolvimento Java)**, com foco em Cloud Computing, Serverless e deploy em nuvem.
 
-> **Status:** base configurada (CI, Sonar, convenções e backlog). O código é construído por etapas, uma task por vez — o andamento está no GitHub Project do repositório e na seção [Roadmap](#roadmap).
+> **Status:** no ar na AWS (`us-east-2`), com deploy automatizado, monitoramento e alarmes. As três funções foram testadas de ponta a ponta na nuvem ([evidências](docs/evidencias/teste-ponta-a-ponta.md)).
 
 ## Sumário
 
@@ -20,6 +20,7 @@ Projeto do **Tech Challenge – Fase 4 (POS TECH · Arquitetura e Desenvolviment
 - [Roadmap](#roadmap)
 - [Como rodar](#como-rodar)
   - [Como testar localmente](#como-testar-localmente)
+  - [Na nuvem (AWS)](#na-nuvem-aws)
 - [Qualidade e automação](#qualidade-e-automação)
 - [Fluxo de trabalho](#fluxo-de-trabalho)
 - [Documentação](#documentação)
@@ -43,17 +44,17 @@ Uma aplicação hospedada em nuvem, com **funções serverless** que automatizam
 
 ### Requisitos do Tech Challenge
 
-| Requisito | Como será atendido |
+| Requisito | Como foi atendido |
 |---|---|
-| Implementar serverless (obrigatório) | Três funções em Quarkus, publicadas como funções do provedor de nuvem |
+| Implementar serverless (obrigatório) | Três funções em Quarkus publicadas no AWS Lambda (Java 21, SnapStart) ([funções](docs/funcoes.md)) |
 | Rodar em ambiente cloud (obrigatório) | AWS, região `us-east-2` ([ADR 0002](docs/adr/0002-provedor-de-nuvem.md) e [ADR 0004](docs/adr/0004-conta-aws-simplificada.md)) |
-| No mínimo duas funções, com responsabilidade única | Três funções, cada uma com um único motivo para mudar e um gatilho próprio |
-| Segurança dos dados e governança de acesso | Identidade por função com privilégio mínimo, criptografia, segredos em cofre, MFA |
-| Componentes de suporte (banco etc.) | Banco gerenciado, fila com DLQ, serviço de e-mail e agendador |
-| Deploy automatizado das funções | Pipeline no GitHub Actions a cada merge na `main` |
-| Aplicação monitorada | Logs centralizados, métricas e dashboard |
-| Notificações automáticas de problemas críticos | E-mail de urgência para avaliações críticas e alarmes de falha |
-| Relatório semanal com média das avaliações | Função agendada que consolida a semana |
+| No mínimo duas funções, com responsabilidade única | Três funções, cada uma com um único motivo para mudar e um gatilho próprio: Function URL, fila SQS e agenda ([arquitetura](docs/arquitetura.md#4-por-que-três-funções-e-uma-fila)) |
+| Segurança dos dados e governança de acesso | Papel IAM por função com privilégio mínimo, criptografia em repouso e só HTTPS, nenhum segredo no código, MFA, CI que só assume papéis ([segurança](docs/seguranca.md)) |
+| Componentes de suporte (banco etc.) | DynamoDB, SQS com DLQ, SNS para os e-mails e EventBridge Scheduler, todos criados pelo Terraform ([infra](infra/README.md)) |
+| Deploy automatizado das funções | GitHub Actions: `plan` em cada PR e `apply` a cada merge na `main` ([deploy](docs/deploy.md)) |
+| Aplicação monitorada | Logs com o id do feedback, consultas salvas, dashboard e alarmes no CloudWatch ([monitoramento](docs/monitoramento.md)) |
+| Notificações automáticas de problemas críticos | E-mail de urgência para avaliações críticas e 5 alarmes que avisam os administradores por e-mail |
+| Relatório semanal com média das avaliações | Função agendada toda segunda às 08:00 (São Paulo) que consolida a semana anterior |
 
 ### Entregáveis
 
@@ -66,39 +67,44 @@ Uma aplicação hospedada em nuvem, com **funções serverless** que automatizam
 
 ```mermaid
 flowchart LR
-    estudante([Estudante]) -->|POST /avaliacao| gw[API Gateway]
-    gw --> ingestion[[feedback-ingestion]]
-    ingestion -->|grava| db[(Banco de feedbacks)]
-    ingestion -->|nota de 0 a 3| fila{{Fila de críticos}}
+    estudante([Estudante]) -->|POST /avaliacao| url[Lambda Function URL<br/>HTTPS]
+    url --> ingestion[[feedback-ingestion]]
+    ingestion -->|grava| db[(DynamoDB<br/>feedbacks)]
+    ingestion -->|nota de 0 a 3| fila{{SQS<br/>critical-feedbacks}}
+    fila -->|3 falhas| dlq{{DLQ}}
     fila --> notifier[[critical-notifier]]
-    notifier -->|e-mail de urgência| admin([Administradores])
-    agenda((Agendamento semanal)) --> report[[weekly-report]]
-    report -->|lê os últimos 7 dias| db
-    report -->|relatório| admin
-    ingestion & notifier & report -.-> mon[Logs, métricas e alarmes]
+    notifier -->|SNS feedbacks-criticos| admin([Administradores])
+    agenda((EventBridge Scheduler<br/>segunda 08:00)) --> report[[weekly-report]]
+    report -->|lê a semana anterior| db
+    report -->|SNS relatorio-semanal| admin
+    ingestion & notifier & report -.-> mon[CloudWatch<br/>logs, dashboard e alarmes]
+    mon -.->|SNS alertas-administradores| admin
 ```
 
 1. O estudante envia a avaliação (`POST /avaliacao`) com uma descrição e uma nota de 0 a 10.
 2. A função **feedback-ingestion** valida, classifica a urgência pela nota e grava no banco.
 3. Se a avaliação for **crítica**, ela publica um evento numa fila.
 4. A função **critical-notifier** consome a fila e envia o **e-mail de urgência** aos administradores.
-5. Uma vez por semana, a função **weekly-report** lê as avaliações dos últimos 7 dias e envia o **relatório** com contagens e média.
+5. Toda segunda-feira, a função **weekly-report** lê as avaliações da semana anterior e envia o **relatório** com contagens e média.
+6. O CloudWatch acompanha as três funções e avisa os administradores por e-mail quando algo falha.
 
-A fila entre o recebimento e a notificação desacopla as duas funções: se o envio de e-mail falhar, o recebimento de avaliações continua funcionando e a mensagem pode ser reprocessada (DLQ).
+A fila entre o recebimento e a notificação desacopla as duas funções: se o envio de e-mail falhar, o recebimento de avaliações continua funcionando, a mensagem é tentada de novo e, depois de 3 falhas, vai para a DLQ (com alarme).
+
+Detalhes, diagramas de sequência e o porquê de cada serviço em [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ---
 
 ## Funções serverless
 
-| Função | Responsabilidade única | Gatilho | Entrada | Saída |
+| Função | Responsabilidade única | Gatilho na AWS | Entrada | Saída |
 |---|---|---|---|---|
-| [`feedback-ingestion`](functions/feedback-ingestion/README.md) | Receber, validar e gravar a avaliação; publicar as críticas | HTTP `POST /avaliacao` | JSON da avaliação | Registro no banco; evento na fila (se crítica); resposta `201` |
-| [`critical-notifier`](functions/critical-notifier/README.md) | Avisar os administradores sobre avaliações críticas | Mensagem na fila de críticos | `CriticalFeedbackEvent` | E-mail de urgência |
-| [`weekly-report`](functions/weekly-report/README.md) | Consolidar a semana e enviar o relatório | Agendamento semanal | — | E-mail com o relatório |
+| [`feedback-ingestion`](functions/feedback-ingestion/README.md) | Receber, validar e gravar a avaliação; publicar as críticas | Function URL: `POST /avaliacao` | JSON da avaliação | Item no DynamoDB; evento na fila (se crítica); resposta `201` |
+| [`critical-notifier`](functions/critical-notifier/README.md) | Avisar os administradores sobre avaliações críticas | Mensagem na fila SQS `critical-feedbacks` | `CriticalFeedbackEvent` | E-mail de urgência (SNS) |
+| [`weekly-report`](functions/weekly-report/README.md) | Consolidar a semana e enviar o relatório | EventBridge Scheduler, segunda às 08:00 (São Paulo) | — | E-mail com o relatório (SNS) |
 
 Cada função tem **um motivo para mudar**: o contrato da API, o canal de notificação ou as métricas do relatório. É essa separação que o Tech Challenge avalia.
 
-Cada uma tem o próprio README, com contrato, exemplos de requisição, como rodar e como testar: [feedback-ingestion](functions/feedback-ingestion/README.md), [critical-notifier](functions/critical-notifier/README.md) e [weekly-report](functions/weekly-report/README.md).
+Cada uma tem o próprio README, com contrato, exemplos de requisição, como rodar, como testar, recursos e permissões na AWS: [feedback-ingestion](functions/feedback-ingestion/README.md), [critical-notifier](functions/critical-notifier/README.md) e [weekly-report](functions/weekly-report/README.md). A visão geral e os contratos entre elas estão em [`docs/funcoes.md`](docs/funcoes.md).
 
 ---
 
@@ -136,7 +142,7 @@ Contém **descrição**, **urgência** e **data de envio** da avaliação.
 
 ### Relatório semanal
 
-- Período: os **7 dias completos** anteriores à execução, no fuso `America/Sao_Paulo`.
+- Período: os **7 dias completos** anteriores à execução, no fuso `America/Sao_Paulo`. Como roda na segunda, cobre de segunda a domingo da semana anterior.
 - Conteúdo: lista das avaliações (**descrição, urgência, data de envio**), **quantidade de avaliações por dia**, **quantidade por urgência** e **média das notas**.
 
 ---
@@ -146,17 +152,19 @@ Contém **descrição**, **urgência** e **data de envio** da avaliação.
 | Tecnologia | Uso | Por quê |
 |---|---|---|
 | **Java 21** | Linguagem | Versão LTS, records e recursos modernos |
-| **Quarkus 3.40** | Framework das funções | Inicialização rápida (menor *cold start*) e extensões prontas para AWS Lambda, Azure Functions e Google Cloud Functions |
-| **Quarkus REST** | `feedback-ingestion` | Endpoint HTTP com validação (Hibernate Validator) e JSON (Jackson) |
-| **Quarkus Funqy** | `critical-notifier` e `weekly-report` | A mesma função roda localmente via HTTP e na nuvem acionada por fila ou agendamento, sem prender o código a um provedor |
+| **Quarkus 3.40** | Framework das funções | Inicialização rápida (menor *cold start*) e extensões prontas para o AWS Lambda |
+| **Quarkus REST** | `feedback-ingestion` | Endpoint HTTP com validação (Hibernate Validator) e JSON (Jackson); na AWS, `quarkus-amazon-lambda-http` atrás da Function URL |
+| **Quarkus Funqy** | `critical-notifier` e `weekly-report` | A mesma função roda localmente via HTTP e na AWS acionada pela fila ou pela agenda (`quarkus-funqy-amazon-lambda`) |
+| **AWS SDK v2** | Gateways reais | DynamoDB, SQS e SNS com o cliente HTTP mais leve (`url-connection-client`) |
 | **Maven** (multi-módulo) | Build | Um POM pai com versões centralizadas e um módulo por função |
 | **JUnit 5, AssertJ, RestAssured** | Testes | Testes unitários das regras e testes de integração das funções (`@QuarkusTest`) |
 | **JaCoCo** | Cobertura | Relatório de cobertura enviado ao Sonar |
 | **SonarQube Cloud** | Qualidade | Bugs, vulnerabilidades, duplicação e cobertura em cada PR |
 | **GitHub Actions** | CI/CD | Build, testes, análise, imagens Docker e deploy |
 | **Docker** | Containers | Imagem multi-stage por função e execução local com Compose |
-| **AWS** | Nuvem | Lambda, DynamoDB, SQS, SNS, EventBridge Scheduler e CloudWatch, só no nível sempre gratuito (ADR 0002) |
+| **AWS** | Nuvem | Lambda (Function URL e SnapStart), DynamoDB, SQS, SNS, EventBridge Scheduler, CloudWatch e IAM, só no nível sempre gratuito (ADR 0002) |
 | **Terraform** | Infraestrutura como código | State no HCP Terraform (plano gratuito), `plan` nos PRs e `apply` pelo GitHub Actions com papéis IAM de credenciais temporárias (ADRs 0003 e 0004) |
+| **GHCR** | Imagens Docker | Uma imagem por função, publicada pelo workflow Docker (`ghcr.io/john-duque/12adjt-fase-4/<função>`) |
 
 ---
 
@@ -182,7 +190,9 @@ Consequências práticas:
 
 - As regras de negócio são testadas com JUnit puro, sem subir o Quarkus.
 - Trocar o provedor de nuvem muda só a camada `infra` e as extensões do `pom.xml`.
-- Enquanto a nuvem não está pronta, os gateways têm implementações provisórias (memória e log) marcadas com `@DefaultBean`; quando a implementação real é criada, ela as substitui sem alterar casos de uso.
+- Cada gateway tem duas implementações na `infra`: a provisória (memória e log, `@DefaultBean`), usada no build padrão (dev mode, Docker e testes), e a real da AWS (DynamoDB, SQS e SNS), que entra só no build `mvn package -Plambda`. Os casos de uso são os mesmos nos dois.
+
+Modelo de cloud, componentes, diagramas de sequência e limites conhecidos: [`docs/arquitetura.md`](docs/arquitetura.md).
 
 ### Decisões de arquitetura
 
@@ -199,47 +209,51 @@ Registradas como ADRs em [`docs/adr`](docs/adr):
 
 ## Estrutura do repositório
 
-Estrutura planejada. Cada parte é criada pela milestone indicada.
-
 ```
 12ADJT-fase-4/
-├── pom.xml                              # POM pai: Java 21, BOM do Quarkus, JaCoCo, Sonar
+├── pom.xml                              # POM pai: Java 21, BOMs do Quarkus e do AWS SDK, JaCoCo, Sonar
 ├── shared/
-│   └── feedback-domain/                 # [M2] camada domain compartilhada (Java puro)
+│   └── feedback-domain/                 # camada domain compartilhada (Java puro)
 │       └── br/com/fiap/feedback/domain/
 │           ├── feedback/                #   Feedback, Urgency, InvalidFeedbackException
 │           │   └── event/               #   CriticalFeedbackEvent
 │           └── shared/exception/        #   DomainException
 ├── functions/
-│   ├── feedback-ingestion/              # [M3] Quarkus REST — POST /avaliacao
+│   ├── feedback-ingestion/              # Quarkus REST — POST /avaliacao
 │   │   └── br/com/fiap/feedback/
 │   │       ├── application/feedback/    #   ReceiveFeedbackUseCase + gateway/
-│   │       └── infra/                   #   web/, persistence/, messaging/, config/, shared/exception/
-│   ├── critical-notifier/               # [M4] Quarkus Funqy — e-mail de urgência
+│   │       └── infra/                   #   web/, persistence/ (DynamoDB), messaging/ (SQS), config/, shared/exception/
+│   ├── critical-notifier/               # Quarkus Funqy — e-mail de urgência
 │   │   └── br/com/fiap/feedback/
 │   │       ├── application/notification/
-│   │       └── infra/                   #   messaging/, notification/, config/
-│   └── weekly-report/                   # [M5] Quarkus Funqy — relatório semanal
+│   │       └── infra/                   #   messaging/ (consumidor da fila), notification/ (SNS), config/
+│   └── weekly-report/                   # Quarkus Funqy — relatório semanal
 │       └── br/com/fiap/feedback/
 │           ├── domain/report/           #   WeeklyReport
 │           ├── application/report/
-│           └── infra/                   #   scheduling/, persistence/, notification/, config/
-├── Dockerfile                           # [M6] multi-stage único para as três funções
-├── compose.yaml                         # [M6] sobe as três funções localmente
-├── Makefile                             # [M6] atalhos de build, testes e Docker
-├── infra/                               # [M7] infraestrutura como código
+│           └── infra/                   #   scheduling/, persistence/ (DynamoDB), notification/ (SNS), config/
+├── Dockerfile                           # multi-stage único para as três funções
+├── compose.yaml                         # sobe as três funções localmente
+├── Makefile                             # atalhos de build, testes e Docker
+├── infra/                               # Terraform
+│   ├── modules/                         #   function, table, queue, notification, schedule, monitoring
+│   └── envs/dev/                        #   ambiente na AWS (us-east-2)
 ├── docs/
-│   ├── guia-github.md                   # configuração do GitHub, Sonar e Project
+│   ├── arquitetura.md                   # modelo de cloud, componentes e fluxos
+│   ├── funcoes.md                       # visão geral das funções e contratos entre elas
+│   ├── deploy.md                        # como publicar, validar e destruir
+│   ├── monitoramento.md                 # logs, dashboard e alarmes
+│   ├── seguranca.md                     # segurança dos dados e governança de acesso
+│   ├── evidencias/                      # teste ponta a ponta na AWS, com prints
 │   ├── adr/                             # decisões de arquitetura
-│   ├── arquitetura.md                   # [M10]
-│   ├── funcoes.md                       # [M10]
-│   ├── deploy.md                        # [M10]
-│   ├── monitoramento.md                 # [M10]
-│   └── seguranca.md                     # [M10]
+│   ├── postman/                         # coleção com os testes locais
+│   ├── img/                             # prints usados nos documentos
+│   └── guia-github.md                   # configuração do GitHub, Sonar e Project
 ├── .github/
 │   ├── workflows/ci.yml                 # build, testes e Sonar
 │   ├── workflows/pr-conventions.yml     # nome da branch e título do PR
-│   ├── workflows/docker.yml             # [M6] imagens e publicação no GHCR
+│   ├── workflows/docker.yml             # imagens e publicação no GHCR
+│   ├── workflows/infra.yml              # Terraform: plan nos PRs, apply na main
 │   ├── ISSUE_TEMPLATE/                  # templates de task e bug
 │   ├── pull_request_template.md
 │   └── dependabot.yml
@@ -263,10 +277,10 @@ O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no G
 | 4. Função critical-notifier | Consumo do evento e e-mail de urgência | ✅ concluída |
 | 5. Função weekly-report | Agregações e relatório semanal | ✅ concluída |
 | 6. Docker | Dockerfile multi-stage, Compose, imagens no CI e no GHCR, testes locais | ✅ concluída |
-| 7. Infraestrutura cloud | Conta, IaC, banco, fila, e-mail e segurança | ⏳ |
-| 8. Integração com a nuvem | Extensões do provedor e gateways reais | ⏳ |
-| 9. Deploy e observabilidade | Deploy automatizado, monitoramento e alarmes | ⏳ |
-| 10. Documentação e entrega | Documentos, vídeo e checklist final | ⏳ |
+| 7. Infraestrutura cloud | Conta, IaC, banco, fila, e-mail e segurança | ✅ concluída |
+| 8. Integração com a nuvem | Extensões do provedor e gateways reais | ✅ concluída |
+| 9. Deploy e observabilidade | Deploy automatizado, monitoramento e alarmes | ✅ concluída |
+| 10. Documentação e entrega | Documentos, vídeo e checklist final | 🔄 documentação concluída; vídeo e checklist final em andamento |
 
 ---
 
@@ -276,7 +290,7 @@ O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no G
 
 - JDK 21
 - Maven 3.9+
-- Docker (a partir da milestone 6)
+- Docker (para rodar com containers)
 
 ### Build e testes
 
@@ -284,11 +298,9 @@ O trabalho está dividido em 10 milestones e 54 tasks numeradas (T01 a T54) no G
 mvn verify
 ```
 
-Executa build, testes e cobertura de todos os módulos já criados.
+Executa build, testes e cobertura de todos os módulos.
 
 ### Funções em modo de desenvolvimento
-
-Disponível conforme cada função é criada (milestones 3 a 5):
 
 ```bash
 mvn install -DskipTests                                     # instala o feedback-domain no Maven local
@@ -372,17 +384,19 @@ Evento ignorado: feedback 3c6e0b8a-... não é crítico (urgencia=LOW)
 Relatório 2026-10-19 a 2026-10-25: total=0 media=0.00 porUrgencia={HIGH=0, MEDIUM=0, LOW=0}
 ```
 
-**5. O que dá e o que ainda não dá para testar localmente**
+**5. O que dá para testar localmente e o que só dá na nuvem**
 
-| Dá para testar | Ainda não dá (chega com as milestones 7 e 8) |
+Localmente, as funções usam os gateways provisórios (memória e log), sem precisar de conta na AWS.
+
+| Dá para testar localmente | Só na nuvem ([abaixo](#na-nuvem-aws)) |
 |---|---|
-| Contrato e validações do `POST /avaliacao` | Integração entre as funções: cada container tem os próprios dados e a fila ainda é só um log, então o notifier é chamado direto, simulando a mensagem |
+| Contrato e validações do `POST /avaliacao` | Integração entre as funções: localmente cada container tem os próprios dados e a fila é só um log, então o notifier é chamado direto, simulando a mensagem |
 | Classificação de urgência pela nota | Relatório com dados: o gateway provisório devolve uma lista vazia |
 | Alerta do notifier (no log) | E-mail real aos administradores |
-| Período e estrutura do relatório | Publicação no GHCR (só no `push` do GitHub Actions) |
-| Health checks, imagens Docker e o smoke test do workflow | |
+| Período e estrutura do relatório | DLQ, agenda semanal, dashboard e alarmes |
+| Health checks, imagens Docker e o smoke test do workflow | Publicação no GHCR (só no `push` do GitHub Actions) |
 
-Comportamento atual: um evento inválido no notifier (descrição em branco ou urgência que não bate com a nota) responde **500**. Na AWS, a mensagem volta para a fila e, depois de 3 tentativas, vai para a DLQ.
+Um evento inválido no notifier (descrição em branco ou urgência que não bate com a nota) responde **500** localmente. Na AWS, a mensagem volta para a fila e, depois de 3 tentativas, vai para a DLQ.
 
 **6. Validar o workflow Docker localmente**
 
@@ -410,6 +424,29 @@ done
 
 Rode da raiz do repositório (onde está o `Dockerfile`) e com `make down` antes, para as portas estarem livres.
 
+### Na nuvem (AWS)
+
+O deploy é automático: cada merge na `main` empacota as funções (`mvn package -Plambda`) e aplica o Terraform pelo GitHub Actions. Como montar o ambiente do zero, publicar, voltar uma versão e destruir os recursos: [`docs/deploy.md`](docs/deploy.md).
+
+Para testar, pegue o endereço da ingestão no CloudShell (ou no resumo da última execução do workflow **Infra**) e rode cada comando em uma linha só:
+
+```bash
+URL=$(aws lambda get-function-url-config --function-name feedback-ingestion --qualifier live --query FunctionUrl --output text)
+curl -i "${URL}q/health/ready"
+curl -i -X POST "${URL}avaliacao" -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
+aws lambda invoke --function-name weekly-report --qualifier live --cli-binary-format raw-in-base64-out --payload '{}' /tmp/relatorio.json && cat /tmp/relatorio.json
+```
+
+| Caso | Esperado |
+|---|---|
+| Health check | `200` com `status = UP` |
+| Nota 2 | `201` com `urgencia = HIGH` e, em poucos segundos, o e-mail de urgência |
+| Nota 9 ou 5 | `201` com `LOW` ou `MEDIUM`, sem e-mail |
+| Nota 11 | `400` com a mensagem da validação |
+| Relatório | JSON da semana anterior e o e-mail do relatório |
+
+O resultado desses testes, com prints das respostas, dos e-mails, da DLQ e do relatório, está em [`docs/evidencias/teste-ponta-a-ponta.md`](docs/evidencias/teste-ponta-a-ponta.md). Para acompanhar uma avaliação nos logs, no dashboard e nos alarmes, veja [`docs/monitoramento.md`](docs/monitoramento.md).
+
 ---
 
 ## Qualidade e automação
@@ -418,8 +455,10 @@ Rode da raiz do repositório (onde está o `Dockerfile`) e com `make down` antes
 |---|---|---|
 | **CI** (`ci.yml`) | Push e PR em `main` e `develop` | Build, testes, cobertura JaCoCo e análise no SonarQube Cloud |
 | **Convenções do PR** (`pr-conventions.yml`) | Todo PR | Valida o nome da branch e o título em Conventional Commits |
+| **Docker** (`docker.yml`) | Push e PR em `main` e `develop` | Gera a imagem de cada função, sobe o container e testa o health check; no push, publica no GHCR |
+| **Infra** (`infra.yml`) | PR que altera infra, funções ou POM; push na `main`; manual | `terraform plan` nos PRs (papel só de leitura); na `main`, empacota as funções, aplica o Terraform e testa a URL ([deploy](docs/deploy.md)) |
 | **Dependabot** | Semanal/mensal | PRs de atualização de dependências Maven e de Actions |
-| **Rulesets** | Sempre | `main` e `develop` só recebem código por PR, com 1 aprovação e checks verdes |
+| **Rulesets** | Sempre | `main` e `develop` só recebem código por PR, com checks verdes e conversas resolvidas; 0 aprovações obrigatórias, porque o grupo tem um integrante |
 
 O quality gate do Sonar exige no código novo: cobertura mínima de 80%, nenhum bug ou vulnerabilidade novos e duplicação de até 3%.
 
@@ -431,11 +470,11 @@ O quality gate do Sonar exige no código novo: cobertura mínima de 80%, nenhum 
 feature/* ──squash──▶ develop ──merge commit──▶ main
 ```
 
-1. No Board do Project, pegar a task de menor número (T01…T51) na coluna **Todo** cujas dependências já estejam em **Done**, e mover para **In Progress**.
+1. No Board do Project, pegar a task de menor número (T01…T54) na coluna **Todo** cujas dependências já estejam em **Done**, e mover para **In Progress**.
 2. Criar a branch a partir da `develop`: `<tipo>/<issue>-<descricao>` (ex.: `feature/9-urgency`).
 3. Fazer os commits do passo a passo da issue, um de cada vez, em Conventional Commits.
-4. Abrir o PR para `develop` com `Closes #<issue>` → checks verdes → 1 aprovação → *Squash and merge*.
-5. Ao fim de cada milestone, promover `develop` → `main`.
+4. Abrir o PR para `develop` com `Closes #<issue>` → checks verdes → *Squash and merge* (com mais integrantes, 1 aprovação de outra pessoa).
+5. Promover `develop` → `main` com *merge commit* ao fim de cada milestone ou quando uma mudança precisa ir para a nuvem: o merge na `main` dispara o deploy.
 
 Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/guia-github.md).
 
@@ -447,13 +486,16 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 |---|---|---|
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branches, commits, PR e regras de código | ✅ |
 | [docs/guia-github.md](docs/guia-github.md) | GitHub, rulesets, Sonar, Project e rotina do grupo | ✅ |
-| [docs/adr](docs/adr) | Decisões de arquitetura | 🔄 |
+| [docs/adr](docs/adr) | Decisões de arquitetura | ✅ |
 | [docs/postman](docs/postman) | Coleção do Postman com os testes locais das funções | ✅ |
-| `docs/arquitetura.md` | Modelo de cloud e componentes | ⏳ |
-| `docs/funcoes.md` | Documentação de cada função | ⏳ |
-| `docs/deploy.md` | Instruções de deploy | ⏳ |
-| `docs/monitoramento.md` | Configuração do monitoramento | ⏳ |
-| `docs/seguranca.md` | Segurança e governança de acesso | ⏳ |
+| [infra/README.md](infra/README.md) | Módulos e recursos do Terraform, pipeline e comandos | ✅ |
+| READMEs das funções | Contrato, como rodar e testar, recursos e permissões na AWS: [ingestion](functions/feedback-ingestion/README.md), [notifier](functions/critical-notifier/README.md), [report](functions/weekly-report/README.md) | ✅ |
+| [docs/arquitetura.md](docs/arquitetura.md) | Modelo de cloud, componentes, fluxos e camadas | ✅ |
+| [docs/funcoes.md](docs/funcoes.md) | Visão geral das funções, contratos entre elas e regra de urgência | ✅ |
+| [docs/deploy.md](docs/deploy.md) | Pré-requisitos, provisionamento, publicação, validação e remoção | ✅ |
+| [docs/monitoramento.md](docs/monitoramento.md) | Logs, consultas, dashboard e alarmes do CloudWatch | ✅ |
+| [docs/seguranca.md](docs/seguranca.md) | Segurança dos dados e governança de acesso | ✅ |
+| [docs/evidencias](docs/evidencias/teste-ponta-a-ponta.md) | Teste ponta a ponta na AWS, com prints | ✅ |
 | Vídeo de demonstração | Aplicação funcionando na nuvem | ⏳ |
 
 ---

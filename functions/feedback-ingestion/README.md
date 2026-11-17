@@ -124,6 +124,40 @@ Mensagem publicada no SQS para as avaliações críticas (contrato com o `critic
 
 Se o envio para a fila falhar, a função loga `Falha ao publicar feedback crítico na fila: id=...` e responde `500`. A avaliação já foi gravada no banco.
 
+## Na AWS
+
+| Recurso | Configuração |
+|---|---|
+| Lambda `feedback-ingestion` | Java 21, 512 MB, timeout de 15 s, SnapStart; versão publicada atrás do alias `live` |
+| Gatilho | **Function URL** no alias `live`: HTTPS, sem autenticação (o envio de avaliações é público). O endereço sai no resumo do `Terraform apply` e na saída `ingestion_url` |
+| Papel IAM | `feedback-ingestion` |
+| Logs | `/aws/lambda/feedback-ingestion`, retenção de 7 dias |
+| Alarmes | `feedback-ingestion-erros` (erro na função) e `feedback-ingestion-throttles` (requisições recusadas com `429` por falta de execuções simultâneas) |
+
+Permissões do papel (privilégio mínimo):
+
+| Ação | Recurso |
+|---|---|
+| `dynamodb:PutItem` | Tabela `feedbacks` |
+| `sqs:SendMessage` | Fila `critical-feedbacks`; a política da própria fila também só libera o envio para este papel |
+| `logs:CreateLogStream`, `logs:PutLogEvents` | Só o próprio grupo de logs |
+
+Teste na nuvem, em uma linha só (troque `<url>` pelo endereço da Function URL, que termina com `/`):
+
+```bash
+curl -i -X POST <url>avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
+```
+
+Esperado: `201` com `"urgencia":"HIGH"`, item novo na tabela `feedbacks` e, em seguida, o e-mail de urgência enviado pelo `critical-notifier`. No CloudWatch, a consulta salva `feedback/rastrear-feedback-por-id` com o `id` da resposta mostra:
+
+```
+Feedback gravado: id=... urgencia=HIGH
+Feedback crítico publicado na fila: id=... urgencia=HIGH
+Feedback crítico notificado: id=...        (critical-notifier)
+```
+
+Evidências: seções 1 a 3 de [`docs/evidencias/teste-ponta-a-ponta.md`](../../docs/evidencias/teste-ponta-a-ponta.md).
+
 ## Configuração
 
 | Propriedade | Variável de ambiente | Padrão |
