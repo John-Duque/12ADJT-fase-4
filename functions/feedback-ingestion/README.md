@@ -74,6 +74,8 @@ Esperado: `201` com `"urgencia":"LOW"`, `201` com `"urgencia":"HIGH"`, `400` com
 Feedback crítico publicado: id=... urgencia=HIGH
 ```
 
+Pelo Postman: pasta **Local (make up)** → **feedback-ingestion** da [coleção](../../docs/postman/12adjt-fase-4.postman_collection.json), com os 9 casos de sucesso e de erro ([passo a passo](../../README.md#como-testar-localmente)).
+
 Testes automatizados: `mvn -pl functions/feedback-ingestion -am verify`.
 
 ## Camadas
@@ -129,7 +131,7 @@ Se o envio para a fila falhar, a função loga `Falha ao publicar feedback crít
 | Recurso | Configuração |
 |---|---|
 | Lambda `feedback-ingestion` | Java 21, 512 MB, timeout de 15 s, SnapStart; versão publicada atrás do alias `live` |
-| Gatilho | **Function URL** no alias `live`: HTTPS, sem autenticação (o envio de avaliações é público). O endereço sai no resumo do `Terraform apply` e na saída `ingestion_url` |
+| Gatilho | **Function URL** no alias `live`: HTTPS, sem autenticação (o envio de avaliações é público): `https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/`. Também sai na saída `ingestion_url` do Terraform |
 | Papel IAM | `feedback-ingestion` |
 | Logs | `/aws/lambda/feedback-ingestion`, retenção de 7 dias |
 | Alarmes | `feedback-ingestion-erros` (erro na função) e `feedback-ingestion-throttles` (requisições recusadas com `429` por falta de execuções simultâneas) |
@@ -142,11 +144,13 @@ Permissões do papel (privilégio mínimo):
 | `sqs:SendMessage` | Fila `critical-feedbacks`; a política da própria fila também só libera o envio para este papel |
 | `logs:CreateLogStream`, `logs:PutLogEvents` | Só o próprio grupo de logs |
 
-Teste na nuvem, em uma linha só (troque `<url>` pelo endereço da Function URL, que termina com `/`):
+Teste em produção, em uma linha só:
 
 ```bash
-curl -i -X POST <url>avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
+curl -i -X POST https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
 ```
+
+Pelo Postman, a pasta **Produção (AWS)** da coleção tem os mesmos casos apontando para esse endereço ([passo a passo](../../README.md#testar-em-produção)).
 
 Esperado: `201` com `"urgencia":"HIGH"`, item novo na tabela `feedbacks` e, em seguida, o e-mail de urgência enviado pelo `critical-notifier`. No CloudWatch, a consulta salva `feedback/rastrear-feedback-por-id` com o `id` da resposta mostra:
 
