@@ -21,6 +21,7 @@ Projeto do **Tech Challenge – Fase 4 (POS TECH · Arquitetura e Desenvolviment
 - [Como rodar](#como-rodar)
   - [Como testar localmente](#como-testar-localmente)
   - [Na nuvem (AWS)](#na-nuvem-aws)
+  - [Testar em produção](#testar-em-produção)
 - [Qualidade e automação](#qualidade-e-automação)
 - [Fluxo de trabalho](#fluxo-de-trabalho)
 - [Documentação](#documentação)
@@ -246,7 +247,7 @@ Registradas como ADRs em [`docs/adr`](docs/adr):
 │   ├── seguranca.md                     # segurança dos dados e governança de acesso
 │   ├── evidencias/                      # teste ponta a ponta na AWS, com prints
 │   ├── adr/                             # decisões de arquitetura
-│   ├── postman/                         # coleção com os testes locais
+│   ├── postman/                         # coleção com os testes locais e de produção
 │   ├── img/                             # prints usados nos documentos
 │   └── guia-github.md                   # configuração do GitHub, Sonar e Project
 ├── .github/
@@ -364,15 +365,17 @@ O `curl` de cada caso, com a resposta completa, está no README da função: [fe
 
 **3. Testar com Postman**
 
-A coleção [`docs/postman/12adjt-fase-4.postman_collection.json`](docs/postman/12adjt-fase-4.postman_collection.json) tem uma pasta por função com todos os casos da tabela (15 requisições), e cada requisição confere o status e os campos da resposta.
+A coleção [`docs/postman/12adjt-fase-4.postman_collection.json`](docs/postman/12adjt-fase-4.postman_collection.json) tem duas pastas: **Local (make up)**, usada aqui, e **Produção (AWS)**, para testar a função publicada na nuvem ([abaixo](#testar-em-produção)). A pasta local tem uma subpasta por função com todos os casos da tabela (15 requisições), e cada requisição confere sozinha o status e os campos da resposta (aba **Test Results**).
 
-1. No Postman: **Import** → selecione o arquivo da coleção.
-2. Abra a coleção → **Run** (*Collection Runner*) → **Run 12ADJT-fase-4**.
+1. Com as funções no ar (`make up`), abra o Postman → **Import** → selecione o arquivo da coleção.
+2. Na barra lateral, abra a coleção **12ADJT-fase-4** → pasta **Local (make up)**.
+3. Para uma requisição: clique nela (por exemplo, **Nota crítica → HIGH**) → **Send**. A resposta aparece embaixo, e os testes em **Test Results**.
+4. Para a pasta inteira: clique nos **...** da pasta **Local (make up)** → **Run folder** → **Run**. Os 15 casos devem passar.
 
-As URLs ficam nas variáveis da coleção (`ingestionUrl`, `notifierUrl`, `reportUrl`). Sem o Postman instalado, rode pelo terminal:
+Os endereços ficam nas variáveis da coleção (aba **Variables**): `ingestionUrl` (8081), `notifierUrl` (8082) e `reportUrl` (8083). Sem o Postman instalado, rode pelo terminal:
 
 ```bash
-npx newman run docs/postman/12adjt-fase-4.postman_collection.json
+npx newman run docs/postman/12adjt-fase-4.postman_collection.json --folder "Local (make up)"
 ```
 
 **4. O que aparece nos logs** (`make logs`)
@@ -428,22 +431,52 @@ Rode da raiz do repositório (onde está o `Dockerfile`) e com `make down` antes
 
 O deploy é automático: cada merge na `main` empacota as funções (`mvn package -Plambda`) e aplica o Terraform pelo GitHub Actions. Como montar o ambiente do zero, publicar, voltar uma versão e destruir os recursos: [`docs/deploy.md`](docs/deploy.md).
 
-Para testar, pegue o endereço da ingestão no CloudShell (ou no resumo da última execução do workflow **Infra**) e rode cada comando em uma linha só:
+#### Testar em produção
+
+A função `feedback-ingestion` está publicada na AWS e aceita avaliações de qualquer pessoa, sem login e sem instalar nada além do `curl` ou do Postman. O endereço de produção é:
+
+```
+https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/
+```
+
+O `critical-notifier` e o `weekly-report` não têm endereço público: na AWS, o primeiro é acionado pela fila SQS e o segundo pela agenda semanal. Testar a ingestão em produção já passa pelos três: a avaliação é gravada no DynamoDB, a nota de 0 a 3 vai para a fila e vira e-mail de urgência, e todas entram no relatório da segunda-feira seguinte. Os e-mails chegam só aos administradores do projeto.
+
+**Com o Postman**
+
+1. Importe a coleção, como no [teste local](#como-testar-localmente) (**Import** → `docs/postman/12adjt-fase-4.postman_collection.json`).
+2. Abra a pasta **Produção (AWS)**. Ela já vem com o endereço acima na variável `prodUrl`.
+3. Rode primeiro **Health check (acorda a função)** → **Send**. Se a função estiver parada há algum tempo, essa primeira chamada leva alguns segundos; as seguintes respondem rápido.
+4. Envie as avaliações que quiser (por exemplo, **Nota crítica → HIGH**). Para mudar o texto ou a nota, edite a aba **Body** antes do **Send**.
+5. Para todos os casos de uma vez: **...** da pasta **Produção (AWS)** → **Run folder** → **Run**. Os 10 casos devem passar.
+
+Pelo terminal: `npx newman run docs/postman/12adjt-fase-4.postman_collection.json --folder "Produção (AWS)"`.
+
+**Com `curl`** (cada comando em uma linha só)
 
 ```bash
-URL=$(aws lambda get-function-url-config --function-name feedback-ingestion --qualifier live --query FunctionUrl --output text)
-curl -i "${URL}q/health/ready"
-curl -i -X POST "${URL}avaliacao" -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
-aws lambda invoke --function-name weekly-report --qualifier live --cli-binary-format raw-in-base64-out --payload '{}' /tmp/relatorio.json && cat /tmp/relatorio.json
+curl -i https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/q/health/ready
+curl -i -X POST https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula sem áudio","nota":2}'
+curl -i -X POST https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Aula muito boa","nota":9}'
+curl -i -X POST https://s7yjift433hz72whwpqcfxecga0rdwyb.lambda-url.us-east-2.on.aws/avaliacao -H 'Content-Type: application/json' -d '{"descricao":"Teste","nota":11}'
 ```
 
 | Caso | Esperado |
 |---|---|
 | Health check | `200` com `status = UP` |
-| Nota 2 | `201` com `urgencia = HIGH` e, em poucos segundos, o e-mail de urgência |
+| Nota 2 | `201` com `urgencia = HIGH`; em poucos segundos, o e-mail de urgência aos administradores |
 | Nota 9 ou 5 | `201` com `LOW` ou `MEDIUM`, sem e-mail |
-| Nota 11 | `400` com a mensagem da validação |
-| Relatório | JSON da semana anterior e o e-mail do relatório |
+| Nota 11 ou -1, sem `descricao`, `descricao` em branco, sem `nota`, sem corpo | `400` com a mensagem da validação (a mesma do teste local) |
+
+A Function URL aceita até 10 execuções simultâneas (limite da conta); acima disso responde `429`, e o alarme `feedback-ingestion-throttles` avisa os administradores.
+
+**Com acesso à conta AWS** (CloudShell), dá para pegar o endereço sem copiar e rodar o relatório na hora, sem esperar a segunda-feira:
+
+```bash
+URL=$(aws lambda get-function-url-config --function-name feedback-ingestion --qualifier live --query FunctionUrl --output text)
+aws lambda invoke --function-name weekly-report --qualifier live --cli-binary-format raw-in-base64-out --payload '{}' /tmp/relatorio.json && cat /tmp/relatorio.json
+```
+
+O relatório volta em JSON (período, total, média, contagens por dia e por urgência) e o mesmo conteúdo chega por e-mail.
 
 O resultado desses testes, com prints das respostas, dos e-mails, da DLQ e do relatório, está em [`docs/evidencias/teste-ponta-a-ponta.md`](docs/evidencias/teste-ponta-a-ponta.md). Para acompanhar uma avaliação nos logs, no dashboard e nos alarmes, veja [`docs/monitoramento.md`](docs/monitoramento.md).
 
@@ -487,7 +520,7 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Branches, commits, PR e regras de código | ✅ |
 | [docs/guia-github.md](docs/guia-github.md) | GitHub, rulesets, Sonar, Project e rotina do grupo | ✅ |
 | [docs/adr](docs/adr) | Decisões de arquitetura | ✅ |
-| [docs/postman](docs/postman) | Coleção do Postman com os testes locais das funções | ✅ |
+| [docs/postman](docs/postman) | Coleção do Postman com os testes locais e de produção | ✅ |
 | [infra/README.md](infra/README.md) | Módulos e recursos do Terraform, pipeline e comandos | ✅ |
 | READMEs das funções | Contrato, como rodar e testar, recursos e permissões na AWS: [ingestion](functions/feedback-ingestion/README.md), [notifier](functions/critical-notifier/README.md), [report](functions/weekly-report/README.md) | ✅ |
 | [docs/arquitetura.md](docs/arquitetura.md) | Modelo de cloud, componentes, fluxos e camadas | ✅ |
