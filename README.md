@@ -6,7 +6,7 @@ Plataforma em que **estudantes avaliam as aulas** de um curso on-line e **admini
 
 Projeto do **Tech Challenge – Fase 4 (POS TECH · Arquitetura e Desenvolvimento Java)**, com foco em Cloud Computing, Serverless e deploy em nuvem.
 
-> **Status:** no ar na AWS (`us-east-2`), com deploy automatizado, monitoramento e alarmes. As três funções foram testadas de ponta a ponta na nuvem ([evidências](docs/evidencias/teste-ponta-a-ponta.md)).
+> **Status:** no ar na AWS (`us-east-2`), com deploy automatizado, monitoramento e alarmes. As três funções foram testadas de ponta a ponta na nuvem ([evidências](docs/evidencias/teste-ponta-a-ponta.md)) e aparecem funcionando no [vídeo de demonstração](https://drive.google.com/file/d/1uHdTzj9H6rWGBkZJvajz-klDN6u8CEiK/view?usp=sharing).
 
 ## Sumário
 
@@ -60,7 +60,7 @@ Uma aplicação hospedada em nuvem, com **funções serverless** que automatizam
 ### Entregáveis
 
 - Repositório público com o código-fonte e a documentação.
-- Vídeo de demonstração com a aplicação funcionando, as funções ativas e as configurações da nuvem.
+- [Vídeo de demonstração](https://drive.google.com/file/d/1uHdTzj9H6rWGBkZJvajz-klDN6u8CEiK/view?usp=sharing) (Google Drive, ~20 min) com a aplicação funcionando, as funções ativas e as configurações da nuvem.
 
 ---
 
@@ -529,7 +529,7 @@ Detalhes em [CONTRIBUTING.md](CONTRIBUTING.md) e em [docs/guia-github.md](docs/g
 | [docs/monitoramento.md](docs/monitoramento.md) | Logs, consultas, dashboard e alarmes do CloudWatch | ✅ |
 | [docs/seguranca.md](docs/seguranca.md) | Segurança dos dados e governança de acesso | ✅ |
 | [docs/evidencias](docs/evidencias/teste-ponta-a-ponta.md) | Teste ponta a ponta na AWS, com prints | ✅ |
-| Vídeo de demonstração | Aplicação funcionando na nuvem | ⏳ |
+| [Vídeo de demonstração](https://drive.google.com/file/d/1uHdTzj9H6rWGBkZJvajz-klDN6u8CEiK/view?usp=sharing) | Arquitetura, funções ativas na AWS, fluxo crítico com e-mail, relatório, segurança, monitoramento e CI/CD | ✅ |
 
 ---
 
